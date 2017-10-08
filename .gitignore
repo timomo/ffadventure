@@ -1,3 +1,2 @@
-/chara.cgi
-/recode.cgi
-/winner.cgi
+/data/*
+!/data/.gitkeep

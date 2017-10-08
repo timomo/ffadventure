@@ -8,7 +8,7 @@
 #---------------------------------------------------------------#
 
 # 日本語ライブラリの読み込み
-require 'jcode.pl';
+# require 'jcode.pl';
 
 # 初期設定ファイルの読み込み
 require 'ffadventure.ini';
@@ -77,7 +77,7 @@ sub html_top {
 
     # HTMLの表示
     print <<"EOM";
-<form action="$script" method="POST">
+<form action="$script_url" method="POST">
 <input type="hidden" name="mode" value="log_in">
 <table border=0 width='100%'>
 <tr>
@@ -100,7 +100,7 @@ sub html_top {
 </table>
 <hr size=0>
 <small>
-/ <a href="$homepage">$home_title</a> / <a href="$script?mode=item_shop">武器屋</a> / <a href="$script?mode=ranking">英雄たちの記録</a> / <a href="$syoku_html">各職業に必要な特性値</a> / <a href="http://cgi.members.interq.or.jp/sun/cumro/cgi-bin/idea/wwwlng.cgi">アイデア募集</a> /
+/ <a href="$homepage">$home_title</a> / <a href="$script_url?mode=item_shop">武器屋</a> / <a href="$script_url?mode=ranking">英雄たちの記録</a> / <a href="$syoku_html">各職業に必要な特性値</a> / <a href="http://cgi.members.interq.or.jp/sun/cumro/cgi-bin/idea/wwwlng.cgi">アイデア募集</a> /
 </form>
 $kanri_message
 <p>
@@ -174,7 +174,7 @@ EOM
 </OL>
 [<B><FONT COLOR="#FF9933">新規キャラクタ作成</FONT></B>]<BR>
 下のボタンを押して、あなたのキャラクターを作成します。
-<FORM ACTION="$script" METHOD="POST">
+<FORM ACTION="$script_url" METHOD="POST">
 <INPUT TYPE="hidden" NAME="mode" VALUE="chara_make">
 <INPUT TYPE="submit" VALUE="新規キャラクター作成">
 </FORM>
@@ -257,7 +257,7 @@ sub item_shop {
 <h1>アイテムショップ</h1>
 <hr size=0>
 <p>
-<form action="$script" method="post">
+<form action="$script_url" method="post">
 買いたいアイテムをチェックし、あなたのIDとパスワードを入力してください。
 <table border=1>
 <tr>
@@ -355,7 +355,7 @@ sub item_buy {
 <h1>アイテムを買いました</h1>
 <hr size=0>
 <p>
-<form action="$script" method="post">
+<form action="$script_url" method="post">
 <input type=hidden name=id value="$item_id">
 <input type=hidden name=pass value="$item_pass">
 <input type=hidden name=mode value=log_in>
@@ -419,7 +419,7 @@ sub yado {
     print <<"EOM";
 <h1>体力を回復しました</h1>
 <hr size=0>
-<form action="$script" method="post">
+<form action="$script_url" method="post">
 <input type=hidden name=mode value=log_in>
 <input type=hidden name=id value="$in{'id'}">
 <input type=hidden name=pass value="$in{'pass'}">
@@ -442,7 +442,7 @@ sub chara_make {
     print <<"EOM";
 <h1>キャラクタ作成画面</h1>
 <hr size=0>
-<form action="$script" method="post">
+<form action="$script_url" method="post">
 <input type="hidden" name="mode" value="make_end">
 <table border=1>
 <tr>
@@ -554,7 +554,7 @@ sub make_end {
 
         print "<h1>職業選択画面</h1><hr size=0>\n";
         print "あなたがなることができる職業は以下のとおりです。<p>\n";
-        print "<form action=\"$script\" method=\"post\">\n";
+        print "<form action=\"$script_url\" method=\"post\">\n";
         print "<input type=hidden name=mode value=regist>\n";
         print "<select name=syoku>\n";
         print "<option value=0>$chara_syoku[0]\n";
@@ -686,7 +686,7 @@ sub make_end {
 <td>$lp</td>
 </tr>
 </table>
-<form action="$script" method="post">
+<form action="$script_url" method="post">
 <input type="hidden" name=mode value=log_in>
 <input type="hidden" name=id value="$in{'id'}">
 <input type="hidden" name=pass value="$in{'pass'}">
@@ -825,7 +825,7 @@ EOM
 EOM
     }
     print <<"EOM";
-<form action="$script" method="post">
+<form action="$script_url" method="post">
 <table border=0>
 <tr>
 <td valign=top width='50%'>
@@ -916,7 +916,7 @@ EOM
 </form>
 </td>
 <td valign="top">
-<form action="$script" method="post">
+<form action="$script_url" method="post">
 【現在転職できる職業一覧】<br>
 <select name=syoku>
 <option value="no">選択してください。
@@ -949,7 +949,7 @@ EOM
 <br>
 　<small>※ 転職すると、全ての能\力値が転職した職業の初期値になります。また、LVも1になります。</small>
 </form>
-<form action="$script" method="post">
+<form action="$script_url" method="post">
 【魔物と戦い修行できます】<br>
 <input type=hidden name=id value=$kid>
 <input type=hidden name=pass value=$kpass>
@@ -967,7 +967,7 @@ EOM
     print <<"EOM";
 　<small>※修行の旅にいけます。</small>
 </form>
-<form action="$script" method="post">
+<form action="$script_url" method="post">
 【旅の宿】<br>
 <input type=hidden name=id value=$kid>
 <input type=hidden name=pass value=$kpass>
@@ -975,7 +975,7 @@ EOM
 <input type=submit value="体力を回復"><br>
 　<small>※体力を回復することができます。<b>$yado_gold</b>G必要です。現在チャンプの方も回復できます。こまめに回復すれば連勝記録も・・・。</small>
 </form>
-<form action="$script" method="post">
+<form action="$script_url" method="post">
 【他のキャラクターへメッセージを送る】<br>
 <input type="text" name=mes size=50><br>
 <select name=mesid>
@@ -1082,7 +1082,7 @@ sub message {
     print <<"EOM";
 <h1>$dnameさんへメッセージを送りました。</h1>
 <hr size=0>
-<form action="$script" method="post">
+<form action="$script_url" method="post">
 <input type=hidden name=mode value=log_in>
 <input type=hidden name=id value="$in{'id'}">
 <input type=hidden name=pass value="$in{'pass'}">
@@ -1164,7 +1164,7 @@ sub tensyoku {
     print <<"EOM";
 <h1>転職しました</h1><hr size=0>
 <p>
-<form action="$script" method="post">
+<form action="$script_url" method="post">
 <input type="hidden" name=id value="$in{'id'}">
 <input type="hidden" name=pass value="$in{'pass'}">
 <input type="hidden" name=mode value=log_in>
@@ -2416,10 +2416,10 @@ sub footer {
         print "【<b><a href=\"http\:\/\/$wurl\">チャンプのホームページへ</a></b>】\n";
     }else{
         if($mode ne ""){
-            print "<a href=\"$script\">TOPページへ</a>\n";
+            print "<a href=\"$script_url\">TOPページへ</a>\n";
         }
         if($kid and $mode ne 'log_in' and $mode ne 'tensyoku' and $mode ne 'yado') { 
-            print " / <a href=\"$script?mode=log_in&id=$kid&pass=$kpass\">ステータス画面へ</a>\n";
+            print " / <a href=\"$script_url?mode=log_in&id=$kid&pass=$kpass\">ステータス画面へ</a>\n";
         }
     }
     print "<HR SIZE=0 WIDTH=\"100%\"><DIV align=right class=small>\n";
@@ -2435,6 +2435,9 @@ sub footer {
 window.setTimeout('CountDown()',100);
 //-->
 </SCRIPT>
+<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.11.0/umd/popper.min.js" integrity="sha384-b/U6ypiBEHpOf/4+1nzFpr53nxSS+GLCkfwBdFNTxtclqqenISfwAzpKaMNFNmj4" crossorigin="anonymous"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta/js/bootstrap.min.js" integrity="sha384-h0AbiXch4ZDo7tp9hKZ4TsHbi047NrKGLO3SEJAg45jXxnGIfYzk4Si90RDIqNm1" crossorigin="anonymous"></script>
 EOM
     }
     print "</body></html>\n";
@@ -2469,7 +2472,7 @@ if($mode eq 'log_in' and $ltime < $b_time and $ktotal){
         if(x>0){
             timerID=setTimeout("CountDown()", 100)
         }else{
-            location.href="$script?mode=log_in&id=$kid&pass=$kpass"
+            location.href="$script_url?mode=log_in&id=$kid&pass=$kpass"
         }
     }
 //-->
@@ -2477,18 +2480,7 @@ if($mode eq 'log_in' and $ltime < $b_time and $ktotal){
 EOM
 }
     print <<"EOM";
-<STYLE type="text/css">
-<!--
-body,tr,td,th { font-size: $b_size }
-a:hover { color: $alink }
-.small { font-size: 10pt }
-.b1 {background: #9ac;border-color: #ccf #669 #669 #ccf;color:#fff; border-style: solid; border-width: 1px;}
-.b2 {background: #669;border-color: #99c #336 #336 #99c;color:#fff; border-style: solid; border-width: 1px; text-align: center}
-.b3 {background: #fff;border-color: #ccf #669 #669 #ccf;}
-.dmg { color: #FF0000; font-size: 18pt }
-.clit { color: #0000FF; font-size: 18pt }
--->
-</STYLE>
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta/css/bootstrap.min.css" integrity="sha384-/Y6pD6FV/Vv2HJnA6t+vslU6fwYXjCFtcEpHbNJ0lyAFsXTsjBbfaDjzALeQsN6M" crossorigin="anonymous">
 EOM
     print "<title>$main_title</title></head>\n";
     print "<body background=\"$backgif\" bgcolor=\"$bgcolor\" text=\"$text\" link=\"$link\" vlink=\"$vlink\" alink=\"$alink\">\n";
@@ -2504,18 +2496,7 @@ sub header2 {
 <head>
 <META HTTP-EQUIV="Content-type" CONTENT="text/html; charset=Shift_JIS">
 <META http-equiv="refresh" content="$refresh;URL=http\:\/\/$wurl"> 
-<STYLE type="text/css">
-<!--
-body,tr,td,th { font-size: $b_size }
-a:hover { color: $alink }
-.small { font-size: 10pt }
-.b1 {background: #9ac;border-color: #ccf #669 #669 #ccf;color:#fff; border-style: solid; border-width: 1px;}
-.b2 {background: #669;border-color: #99c #336 #336 #99c;color:#fff; border-style: solid; border-width: 1px; text-align: center}
-.b3 {background: #fff;border-color: #ccf #669 #669 #ccf;}
-.dmg { color: #FF0000; font-size: 18pt }
-.clit { color: #0000FF; font-size: 18pt }
--->
-</STYLE>
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta/css/bootstrap.min.css" integrity="sha384-/Y6pD6FV/Vv2HJnA6t+vslU6fwYXjCFtcEpHbNJ0lyAFsXTsjBbfaDjzALeQsN6M" crossorigin="anonymous">
 EOM
     print "<title>$main_title</title></head>\n";
     print "<body background=\"$backgif\" bgcolor=\"$bgcolor\" text=\"$text\" link=\"$link\" vlink=\"$vlink\" alink=\"$alink\">\n";
@@ -2536,7 +2517,7 @@ sub decode {
         $value =~ s/%([a-fA-F0-9][a-fA-F0-9])/pack("C", hex($1))/eg;
 
         # 文字コードをシフトJIS変換
-        &jcode'convert(*value, "sjis", "", "z");
+        # &jcode'convert(*value, "sjis", "", "z");
 
         # タグ処理
         $value =~ s/</&lt;/g;

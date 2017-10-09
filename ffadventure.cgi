@@ -2578,7 +2578,7 @@ sub set_cookie {
     $gmt = sprintf("%s, %02d-%s-%04d %02d:%02d:%02d GMT",
             $week[$wday],$mday,$month[$mon],$year+1900,$hour,$min,$sec);
     $cook="id<>$cookie_id\,pass<>$cookie_pass";
-    print "Set-Cookie: FFADV=$cook; expires=$gmt\n";
+    print "Set-Cookie: FFADV=$cook; expires=$gmt; path=$script_url\n";
 }
 
 #------------------#

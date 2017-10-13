@@ -1,0 +1,3 @@
+$dsn = 'DBI:mysql:database=ffa;host=xxxxx;port=3306';
+$dbuser = 'xxxxx';
+$dbpass = 'xxxxx';

@@ -1,5 +1,12 @@
 #!/usr/bin/perl --
 
+use 5.010001;
+use CGI qw|:standard|;
+use CGI::Session;
+use lib qw(lib);
+use DBI;
+use Data::Dumper;
+
 #--- [注意事項] ------------------------------------------------#
 # 1. このスクリプトはフリーソフトです。このスクリプトを使用した    #
 #    いかなる損害に対して作者は一切の責任を負いません。        #
@@ -12,6 +19,7 @@
 
 # 初期設定ファイルの読み込み
 require 'ini/ffadventure.ini';
+require 'ini/dsn.ini';
 
 #================================================================#
 #┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓#
@@ -22,26 +30,57 @@ require 'ini/ffadventure.ini';
 #--------------#
 #　メイン処理　#
 #--------------#
+my $dbh     = DBI->connect( $dsn, $dbuser, $dbpass ) or &error("DBエラー");
+my $cgi     = CGI->new();
+my $session = CGI::Session->load( 'driver:mysql', $cgi, { Handle => $dbh } );
+my %in      = ();
+
 if ($mente) {
     &error(
 "現在メンテナンス中です。しばらくお待ちください。"
     );
 }
-&decode;
-if    ( $mode eq "" )           { &html_top; }
-elsif ( $mode eq 'log_in' )     { &log_in; }
-elsif ( $mode eq 'chara_make' ) { &chara_make; }
-elsif ( $mode eq 'make_end' )   { &make_end; }
-elsif ( $mode eq 'regist' )     { &regist; }
-elsif ( $mode eq 'battle' )     { &battle; }
-elsif ( $mode eq 'tensyoku' )   { &tensyoku; }
-elsif ( $mode eq 'monster' )    { &monster; }
-elsif ( $mode eq 'ranking' )    { &ranking; }
-elsif ( $mode eq 'yado' )       { &yado; }
-elsif ( $mode eq 'message' )    { &message; }
-elsif ( $mode eq 'item_shop' )  { &item_shop; }
-elsif ( $mode eq 'item_buy' )   { &item_buy; }
-&html_top;
+&decode();
+
+if ( $session->is_empty() ) {
+    $session = $session->new();
+}
+else {
+    $in{'id'}   = $session->param('id');
+    $in{'pass'} = $session->param('pass');
+}
+$session->expire('+1h');
+
+given ( $cgi->param('mode') ) {
+    when ('log_in')     { &log_in(); }
+    when ('chara_make') { &chara_make(); }
+    when ('make_end')   { &make_end(); }
+    when ('regist')     { &regist(); }
+    when ('battle')     { &battle(); }
+    when ('tensyoku')   { &tensyoku(); }
+    when ('monster')    { &monster(); }
+    when ('ranking')    { &ranking(); }
+    when ('yado')       { &yado(); }
+    when ('message')    { &message(); }
+    when ('item_shop')  { &item_shop(); }
+    when ('item_buy')   { &item_buy(); }
+    when ('top')        { &top(); }
+    default             { &html_top(); }
+}
+$session->flush();
+exit(0);
+
+sub log_in {
+    my $id   = $cgi->param('id');
+    my $pass = $cgi->param('pass');
+    if ( $id == 'tyomo88' && $pass == 'manamana' ) {
+        $session->param( 'id',   $id );
+        $session->param( 'pass', $pass );
+        &header();
+        print
+"<META http-equiv=\"refresh\" content=\"$refresh;URL=$script_url?mode=top\">";
+    }
+}
 
 #-----------------#
 #  TOPページ表示  #
@@ -847,7 +886,8 @@ EOM
 #  書き込み処理  #
 #----------------#
 sub regist {
-    &set_cookie;
+
+    # &set_cookie;
 
     &get_host;
 
@@ -930,7 +970,7 @@ sub regist {
 #----------------#
 #  ログイン画面  #
 #----------------#
-sub log_in {
+sub top {
     $chara_flag = 1;
 
     # ファイルロック
@@ -2992,16 +3032,14 @@ EOM
 #  HTMLのヘッダー  #
 #------------------#
 sub header {
-    print "Cache-Control: no-cache\n";
-    print "Pragma: no-cache\n";
-    print "Content-type: text/html\n\n";
+    print $session->header( '-charset' => 'UTF-8' );
     print <<"EOM";
 <html>
 <head>
-<META HTTP-EQUIV="Content-type" CONTENT="text/html; charset=Shift_JIS">
+<META HTTP-EQUIV="Content-type" CONTENT="text/html; charset=UTF-8">
 EOM
 
-    if ( $mode eq 'log_in' and $ltime < $b_time and $ktotal ) {
+    if ( $mode eq 'top' and $ltime < $b_time and $ktotal ) {
         print <<"EOM";
 <META HTTP-EQUIV="Refresh" CONTENT="$vtime">
 <SCRIPT LANGUAGE="JavaScript">
@@ -3017,7 +3055,7 @@ EOM
         if(x>0){
             timerID=setTimeout("CountDown()", 100)
         }else{
-            location.href="$script_url?mode=log_in&id=$kid&pass=$kpass"
+            location.href="$script_url?mode=top"
         }
     }
 //-->
@@ -3036,11 +3074,11 @@ EOM
 #  強制送還用  #
 #--------------#
 sub header2 {
-    print "Content-type: text/html\n\n";
+    print $session->header( '-charset' => 'UTF-8' );
     print <<"EOM";
 <html>
 <head>
-<META HTTP-EQUIV="Content-type" CONTENT="text/html; charset=Shift_JIS">
+<META HTTP-EQUIV="Content-type" CONTENT="text/html; charset=UTF-8">
 <META http-equiv="refresh" content="$refresh;URL=http\:\/\/$wurl"> 
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta/css/bootstrap.min.css" integrity="sha384-/Y6pD6FV/Vv2HJnA6t+vslU6fwYXjCFtcEpHbNJ0lyAFsXTsjBbfaDjzALeQsN6M" crossorigin="anonymous">
 EOM

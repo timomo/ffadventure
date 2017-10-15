@@ -3091,6 +3091,9 @@ EOM
 #  デコード処理  #
 #----------------#
 sub decode {
+    for  my $key ($cgi->param()) {
+        $in{$key} = $cgi->param($key);
+    }
     if ( $ENV{'REQUEST_METHOD'} eq "POST" ) {
         if ( $ENV{'CONTENT_LENGTH'} > 51200 ) {
             &error("投稿量が大きすぎます");

@@ -6,6 +6,9 @@ use CGI::Session;
 use lib qw(lib);
 use DBI;
 use Data::Dumper;
+use Chara;
+use utf8;
+use Encode;
 
 #--- [注意事項] ------------------------------------------------#
 # 1. このスクリプトはフリーソフトです。このスクリプトを使用した    #
@@ -30,7 +33,7 @@ require 'ini/dsn.ini';
 #--------------#
 #　メイン処理　#
 #--------------#
-my $dbh     = DBI->connect( $dsn, $dbuser, $dbpass ) or &error("DBエラー");
+my $dbh     = DBI->connect( $dsn, $dbuser, $dbpass, { mysql_enable_utf8 => 1, on_connect_do => ['SET NAMES utf8'] } ) or &error("DBエラー");
 my $cgi     = CGI->new();
 my $session = CGI::Session->load( 'driver:mysql', $cgi, { Handle => $dbh } );
 my %in      = ();
@@ -134,9 +137,9 @@ sub html_top {
     </tr>
     <tr>
     <td class=b1>I D</td>
-    <td><input type="text" size="10" name="id" value="$c_id"></td>
+    <td><input type="text" size="10" name="id" value="$in{id}"></td>
     <td class=b1>パスワード</td>
-    <td><input type="password" size="10" name="pass" value="$c_pass"></td>
+    <td><input type="password" size="10" name="pass" value="$in{pass}"></td>
     <td><input type="submit" value="ログイン"></td>
     </tr>
     </table>
@@ -978,22 +981,13 @@ sub top {
     elsif ( $lockkey == 2 ) { &lock2; }
     elsif ( $lockkey == 3 ) { &file'lock; }
 
-    open( IN, "$chara_file" );
-    @log_in = <IN>;
-    close(IN);
+    my $chara = Chara->new(dbh => $dbh, id => $in{id});
+    my $bool = $chara->load();
 
-    $hit = 0;
-    foreach (@log_in) {
-        (
-            $kid,    $kpass, $ksite,  $kurl,  $kname, $ksex,  $kchara,
-            $kn_0,   $kn_1,  $kn_2,   $kn_3,  $kn_4,  $kn_5,  $kn_6,
-            $ksyoku, $khp,   $kmaxhp, $kex,   $klv,   $kgold, $klp,
-            $ktotal, $kkati, $kwaza,  $kitem, $kmons, $khost, $kdate
-        ) = split(/<>/);
-        if ( $in{'id'} eq "$kid" and $in{'pass'} eq "$kpass" ) {
-            $hit = 1;
-            last;
-        }
+    if ( $chara->in_storage == 0 ) {
+        &error(
+"入力されたIDは登録されていません。又はパスワードが違います。"
+        );
     }
 
     $ltime = time();
@@ -1001,10 +995,8 @@ sub top {
     $vtime = $b_time - $ltime;
     $mtime = $m_time - $ltime;
 
-    if ( !$hit ) {
-        &error(
-"入力されたIDは登録されていません。又はパスワードが違います。"
-        );
+    for my $key (@{$chara->parameter}) {
+        ${'k'. $key} = $chara->$key;
     }
 
     &class;
@@ -1025,9 +1017,11 @@ sub top {
     if ( !$hit ) { $i_name = ""; }
 
     &header;
+    my $site = $ksite;
+    my $name = $kname;
 
     print <<"EOM";
-<h1>$knameさん用ステータス画面</h1>
+<h1>$nameさん用ステータス画面</h1>
 <hr size=0>
 EOM
     if ( $ltime < $b_time or !$ktotal ) {
@@ -1039,16 +1033,16 @@ EOM
     }
     print <<"EOM";
 <form action="$script_url" method="post">
-<table border=0>
+<table border=0 class="">
 <tr>
 <td valign=top width='50%'>
-<table border=1>
+<table border=1 class="table table-striped">
 <tr>
 <td colspan="5" class="b2" align="center">ホームページデータ</td>
 </tr>
 <tr>
 <td class="b1">ホームページ名</td>
-<td colspan="4"><input type="text" name=site value="$ksite" size=50></td>
+<td colspan="4"><input type="text" name=site value="$site" size=50></td>
 </tr>
 <tr>
 <td class="b1">ホームページのURL</td>
@@ -1060,7 +1054,7 @@ EOM
 <tr>
 <td rowspan="8" align="center"><img src="$img_path/$chara_img[$kchara]"><br>武器：$i_name</td>
 <td class="b1">なまえ</td>
-<td><input type="text" name=c_name value="$kname" size=10></td>
+<td><input type="text" name=c_name value="$name" size=10></td>
 <td class="b1">性別</td>
 <td>$esex</td>
 </tr>
@@ -1072,39 +1066,39 @@ EOM
 </tr>
 <tr>
 <td class="b1">レベル</td>
-<td>$klv</td>
+<td class="int">$klv</td>
 <td class="b1">経験値</td>
-<td>$kex/$next_ex</td>
+<td class="int">$kex/$next_ex</td>
 </tr>
 <tr>
 <td class="b1">お金</td>
-<td>$kgold</td>
+<td class="int">$kgold</td>
 <td class="b1">HP</td>
-<td>$khp\/$kmaxhp</td>
+<td class="int">$khp\/$kmaxhp</td>
 </tr>
 <tr>
 <td class="b1">力</td>
-<td>$kn_0</td>
+<td class="int">$kn_0</td>
 <td class="b1">知能\</td>
-<td>$kn_1</td>
+<td class="int">$kn_1</td>
 </tr>
 <tr>
 <td class="b1">信仰心</td>
-<td>$kn_2</td>
+<td class="int">$kn_2</td>
 <td class="b1">生命力</td>
-<td>$kn_3</td>
+<td class="int">$kn_3</td>
 </tr>
 <tr>
 <td class="b1">器用さ</td>
-<td>$kn_4</td>
+<td class="int">$kn_4</td>
 <td class="b1">速さ</td>
-<td>$kn_5</td>
+<td class="int">$kn_5</td>
 </tr>
 <tr>
 <td class="b1">魅力</td>
-<td>$kn_6</td>
+<td class="int">$kn_6</td>
 <td class="b1">カルマ</td>
-<td>$klp</td>
+<td class="int">$klp</td>
 </tr>
 <tr>
 <td class="b1">技発動時コメント</td>
@@ -3065,6 +3059,11 @@ EOM
     print <<"EOM";
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta/css/bootstrap.min.css" integrity="sha384-/Y6pD6FV/Vv2HJnA6t+vslU6fwYXjCFtcEpHbNJ0lyAFsXTsjBbfaDjzALeQsN6M" crossorigin="anonymous">
 EOM
+    say <<EOF;
+<style>
+.int { text-align: right }
+</style>
+EOF
     print "<title>$main_title</title></head>\n";
     print
 "<body background=\"$backgif\" bgcolor=\"$bgcolor\" text=\"$text\" link=\"$link\" vlink=\"$vlink\" alink=\"$alink\">\n";

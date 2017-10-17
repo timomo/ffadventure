@@ -33,7 +33,8 @@ require 'ini/dsn.ini';
 #--------------#
 #　メイン処理　#
 #--------------#
-my $dbh     = DBI->connect( $dsn, $dbuser, $dbpass, { mysql_enable_utf8 => 1, on_connect_do => ['SET NAMES utf8'] } ) or &error("DBエラー");
+my $dbh = DBI->connect( $dsn, $dbuser, $dbpass, $dbopts )
+  or &error("DBエラー");
 my $cgi     = CGI->new();
 my $session = CGI::Session->load( 'driver:mysql', $cgi, { Handle => $dbh } );
 my %in      = ();
@@ -49,12 +50,13 @@ if ( $session->is_empty() ) {
     $session = $session->new();
 }
 else {
-    $in{'id'}   = $session->param('id');
-    $in{'pass'} = $session->param('pass');
+    $in{id}   = $session->param('id');
+    $in{pass} = $session->param('pass');
 }
 $session->expire('+1h');
 
 given ( $cgi->param('mode') ) {
+    when ('log_out')    { &log_out(); }
     when ('log_in')     { &log_in(); }
     when ('chara_make') { &chara_make(); }
     when ('make_end')   { &make_end(); }
@@ -74,15 +76,31 @@ $session->flush();
 exit(0);
 
 sub log_in {
-    my $id   = $cgi->param('id');
-    my $pass = $cgi->param('pass');
-    if ( $id == 'tyomo88' && $pass == 'manamana' ) {
+    my $id    = $cgi->param('id');
+    my $pass  = $cgi->param('pass');
+    my $chara = Chara->new( dbh => $dbh, id => $id );
+    $chara->load();
+    if ( $chara->in_storage == 1 && $chara->pass == $pass ) {
         $session->param( 'id',   $id );
         $session->param( 'pass', $pass );
-        &header();
-        print
-"<META http-equiv=\"refresh\" content=\"$refresh;URL=$script_url?mode=top\">";
     }
+    &header();
+    print
+"<META http-equiv=\"refresh\" content=\"$refresh;URL=$script_url?mode=top\">";
+}
+
+sub log_out {
+    if ( $session->is_empty() ) {
+
+        # noop
+    }
+    else {
+        $session->clear( [ 'id', 'pass' ] );
+        $session->close;
+        $session->delete;
+    }
+    &header();
+    print "<META http-equiv=\"refresh\" content=\"$refresh;URL=$script_url\">";
 }
 
 #-----------------#
@@ -981,7 +999,7 @@ sub top {
     elsif ( $lockkey == 2 ) { &lock2; }
     elsif ( $lockkey == 3 ) { &file'lock; }
 
-    my $chara = Chara->new(dbh => $dbh, id => $in{id});
+    my $chara = Chara->new( dbh => $dbh, id => $in{id} );
     my $bool = $chara->load();
 
     if ( $chara->in_storage == 0 ) {
@@ -995,8 +1013,8 @@ sub top {
     $vtime = $b_time - $ltime;
     $mtime = $m_time - $ltime;
 
-    for my $key (@{$chara->parameter}) {
-        ${'k'. $key} = $chara->$key;
+    for my $key ( @{ $chara->parameter } ) {
+        ${ 'k' . $key } = $chara->$key;
     }
 
     &class;
@@ -2989,13 +3007,11 @@ sub footer {
         if ( $mode ne "" ) {
             print "<a href=\"$script_url\">TOPページへ</a>\n";
         }
-        if (    $kid
-            and $mode ne 'log_in'
-            and $mode ne 'tensyoku'
-            and $mode ne 'yado' )
-        {
+        if ( !$session->is_empty() ) {
             print
-" / <a href=\"$script_url?mode=log_in&id=$kid&pass=$kpass\">ステータス画面へ</a>\n";
+" / <a href=\"$script_url?mode=log_in\">ステータス画面へ</a>\n";
+            print
+              " / <a href=\"$script_url?mode=log_out\">ログアウト</a>\n";
         }
     }
     print "<HR SIZE=0 WIDTH=\"100%\"><DIV align=right class=small>\n";
@@ -3090,7 +3106,7 @@ EOM
 #  デコード処理  #
 #----------------#
 sub decode {
-    for  my $key ($cgi->param()) {
+    for my $key ( $cgi->param() ) {
         $in{$key} = $cgi->param($key);
     }
     if ( $ENV{'REQUEST_METHOD'} eq "POST" ) {

@@ -1,25 +1,13 @@
-package Chara;
+package FFAdventure::Base;
 
 use Mojo::Base -base;
 use SQL::Maker;
 
-has 'parameter' => sub {
-    return [qw/id pass site url name sex chara n_0 n_1 n_2 n_3 n_4 n_5 n_6 syoku hp maxhp ex lv gold lp total kati waza item mons host date/];
-};
-has [qw/id pass site url name sex chara n_0 n_1 n_2 n_3 n_4 n_5 n_6 syoku hp maxhp ex lv gold lp total kati waza item mons host date/];
 has 'in_storage' => 0;
 has 'dbh';
 has 'maker' => sub {
     return SQL::Maker->new( driver => 'mysql' );
 };
-has 'table' => 'chara';
-
-sub convertArray2ref {
-    my $this = shift;
-    my $ref = {};
-    @$ref{@{$this->parameter}} = @_;
-    return $ref;
-}
 
 sub toArray {
     my $this = shift;
@@ -55,9 +43,8 @@ sub save {
     } else {
         ($sql, @binds) = $this->maker->update($this->table, $ref, { id => $this->id });
     }
-    my $sth = $this->dbh->prepare($sql);
-    $sth->execute(@binds);
-print $sth->errstr;
+    my $sth = $this->dbh->prepare($sql) || die $this->dbh->errstr;
+    $sth->execute(@binds) || die $sth->errstr;
     return 1;
 }
 

@@ -6,9 +6,11 @@ use CGI::Session;
 use lib qw(lib);
 use DBI;
 use Data::Dumper;
-use Chara;
+use FFAdventure::Chara;
+use FFAdventure::Monster;
 use utf8;
 use Encode;
+use Data::WeightedRoundRobin;
 
 #--- [注意事項] ------------------------------------------------#
 # 1. このスクリプトはフリーソフトです。このスクリプトを使用した    #
@@ -78,7 +80,7 @@ exit(0);
 sub log_in {
     my $id    = $cgi->param('id');
     my $pass  = $cgi->param('pass');
-    my $chara = Chara->new( dbh => $dbh, id => $id );
+    my $chara = FFAdventure::Chara->new( dbh => $dbh, id => $id );
     $chara->load();
     if ( $chara->in_storage == 1 && $chara->pass == $pass ) {
         $session->param( 'id',   $id );
@@ -999,7 +1001,7 @@ sub top {
     elsif ( $lockkey == 2 ) { &lock2; }
     elsif ( $lockkey == 3 ) { &file'lock; }
 
-    my $chara = Chara->new( dbh => $dbh, id => $in{id} );
+    my $chara = FFAdventure::Chara->new( dbh => $dbh, id => $in{id} );
     my $bool = $chara->load();
 
     if ( $chara->in_storage == 0 ) {
@@ -2675,18 +2677,10 @@ sub monster {
 
     $battle_flag = 1;
 
-    open( IN, "$chara_file" );
-    @battle = <IN>;
-    close(IN);
-
-    foreach (@battle) {
-        (
-            $kid,    $kpass, $ksite,  $kurl,  $kname, $ksex,  $kchara,
-            $kn_0,   $kn_1,  $kn_2,   $kn_3,  $kn_4,  $kn_5,  $kn_6,
-            $ksyoku, $khp,   $kmaxhp, $kex,   $klv,   $kgold, $klp,
-            $ktotal, $kkati, $kwaza,  $kitem, $kmons, $khost, $kdate
-        ) = split(/<>/);
-        if ( $in{'id'} eq "$kid" ) { last; }
+    my $chara = FFAdventure::Chara->new( dbh => $dbh, id => $in{id} );
+    my $bool = $chara->load();
+    for my $key ( @{ $chara->parameter } ) {
+        ${ 'k' . $key } = $chara->$key;
     }
 
     $ltime = time();
@@ -2706,9 +2700,14 @@ sub monster {
     @MONSTER = <IN>;
     close(IN);
 
-    $r_no = @MONSTER;
+    my $dwr = Data::WeightedRoundRobin->new();
+    for my $no (0 .. $#MONSTER) {
+        my ( $mname, $mex, $mhp, $msp, $mdmg, $dummy ) = split( /<>/, $MONSTER[$no] );
+        my $seed = $chara->maxhp / $mhp;
+        $dwr->add({ value => $no, weight => $seed });
+    }
 
-    $r_no = int( rand($r_no) );
+    $r_no = $dwr->next;
 
     ( $mname, $mex, $mhp, $msp, $mdmg ) = split( /<>/, $MONSTER[$r_no] );
 

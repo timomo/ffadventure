@@ -9,6 +9,16 @@ has 'maker' => sub {
     return SQL::Maker->new( driver => 'mysql' );
 };
 
+sub fill {
+    my $this = shift;
+    my $attributes = shift;
+    for my $key (keys %$attributes) {
+        if ($this->can($key)) {
+            $this->$key($attributes->{$key});
+        }
+    }
+}
+
 sub toArray {
     my $this = shift;
     my $ref = {};

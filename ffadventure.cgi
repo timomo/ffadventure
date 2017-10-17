@@ -946,9 +946,21 @@ sub regist {
             );
         }
         elsif ( $cid eq "$kid" ) {
-            unshift( @new,
-"$kid<>$kpass<>$ksite<>$kurl<>$kname<>$ksex<>$kchara<>$kn_0<>$kn_1<>$kn_2<>$kn_3<>$kn_4<>$kn_5<>$kn_6<>$ksyoku<>$khp<>$kmaxhp<>$kex<>$klv<>$kgold<>$klp<>$ktotal<>$kkati<>$kwaza<>$kitem<>$kmons<>$host<>$date<>\n"
+            my $chara = FFAdventure::Chara->new( dbh => $dbh, id => $kid );
+            $chara->load();
+            my $attr = $chara->convertArray2ref(
+                $kid, $kpass, $ksite, $kurl, $kname, $ksex, $kchara,
+                $kn_0, $kn_1, $kn_2, $kn_3, $kn_4, $kn_5, $kn_6,
+                $ksyoku, $khp, $kmaxhp, $kex, $klv, $kgold, $klp,
+                $ktotal, $kkati, $kwaza, $kitem, $kmons, $host, $date
             );
+            eval {
+                $chara->fill($attr);
+                $chara->save();
+            };
+            if ($@) {
+                &error($@);
+            }
             $hit = 1;
         }
         else {
@@ -972,9 +984,26 @@ sub regist {
         $n_5     = $kiso_nouryoku[5] + $in{'n_5'};
         $n_6     = $kiso_nouryoku[6] + $in{'n_6'};
         $c_syoku = $in{'syoku'};
-        unshift( @new,
-"$in{'id'}<>$in{'pass'}<>$in{'site'}<>$in{'url'}<>$in{'c_name'}<>$in{'sex'}<>$in{'chara'}<>$n_0<>$n_1<>$n_2<>$n_3<>$n_4<>$n_5<>$n_6<>$c_syoku<>$hp<>$hp<>$ex<>$lv<>$gold<>$lp<>$total<>$kati<>$waza<>$item<>$mons<>$host<>$date<>\n"
+        $item ||= '0000';
+        $mons ||= 0;
+        $kati ||= 0;
+        $total ||= 0;
+        $waza ||= 'コメントなし';
+        my $chara = FFAdventure::Chara->new( dbh => $dbh, id => $in{id} );
+        $chara->load();
+        my $attr = $chara->convertArray2ref(
+            $in{id}, $in{pass}, $in{site}, $in{url}, $in{c_name}, $in{sex}, $in{chara},
+            $n_0, $n_1, $n_2, $n_3, $n_4, $n_5, $n_6,
+            $c_syoku, $hp, $hp, $ex, $lv, $gold, $lp,
+            $total, $kati, $waza, $item, $mons, $host, $date
         );
+        eval {
+            $chara->fill($attr);
+            $chara->save();
+        };
+        if ($@) {
+            &error($@);
+        }
     }
 
     open( OUT, ">$chara_file" );
@@ -1001,7 +1030,7 @@ sub top {
     elsif ( $lockkey == 2 ) { &lock2; }
     elsif ( $lockkey == 3 ) { &file'lock; }
 
-    my $chara = FFAdventure::Chara->new( dbh => $dbh, id => $in{id} );
+    my $chara = FFAdventure::Chara->new( dbh => $dbh, id => $session->param('id') );
     my $bool = $chara->load();
 
     if ( $chara->in_storage == 0 ) {
@@ -2709,7 +2738,7 @@ sub monster {
 
     $r_no = $dwr->next;
 
-    ( $mname, $mex, $mhp, $msp, $mdmg ) = split( /<>/, $MONSTER[$r_no] );
+    my ( $mname, $mex, $mhp, $msp, $mdmg ) = split( /<>/, $MONSTER[$r_no] );
 
     if ( $in{'site'} )   { $ksite = $in{'site'}; }
     if ( $in{'url'} )    { $kurl  = $in{'url'}; }

@@ -1424,9 +1424,6 @@ sub battle {
 
     my $winner = FFAdventure::Winner->new( dbh => $dbh );
     my $bool = $winner->last();
-    for my $key ( @{ $winner->parameter } ) {
-        ${ 'w' . $key } = $winner->$key;
-    }
 
     if ($bool == 0) {
         $winner->fill($chara->toArray());
@@ -1436,6 +1433,9 @@ sub battle {
         $winner->count(1);
         $winner->save();
         &error("チャンプがいない為、自分がチャンプになりました。");
+    }
+    for my $key ( @{ $winner->parameter } ) {
+        ${ 'w' . $key } = $winner->$key;
     }
 
     if ( $wid eq $kid ) {

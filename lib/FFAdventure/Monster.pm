@@ -8,5 +8,6 @@ has 'parameter' => sub {
 };
 has [qw/id name ex hp sp dmg maxhp/];
 has 'table' => 'monster';
+has 'primaryKey' => 'id';
 
 1;

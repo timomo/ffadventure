@@ -30,7 +30,7 @@ sub toArray {
 
 sub load {
     my $this = shift;
-    my ($sql, @binds) = $this->maker->select($this->table, ['*'], { id => $this->id });
+    my ($sql, @binds) = $this->maker->select($this->table, ['*'], { $this->primaryKey => $this->id });
     my $sth = $this->dbh->prepare($sql);
     $sth->execute(@binds);
     my $row = $sth->fetchrow_hashref();
@@ -51,7 +51,7 @@ sub save {
     if ($this->in_storage == 0) {
         ($sql, @binds) = $this->maker->insert($this->table, $ref);
     } else {
-        ($sql, @binds) = $this->maker->update($this->table, $ref, { id => $this->id });
+        ($sql, @binds) = $this->maker->update($this->table, $ref, { $this->primaryKey => $this->id });
     }
     my $sth = $this->dbh->prepare($sql) || die $this->dbh->errstr;
     $sth->execute(@binds) || die $sth->errstr;

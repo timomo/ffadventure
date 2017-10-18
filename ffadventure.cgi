@@ -8,6 +8,7 @@ use DBI;
 use Data::Dumper;
 use FFAdventure::Chara;
 use FFAdventure::Monster;
+use FFAdventure::Winner;
 use utf8;
 use Encode;
 use Data::WeightedRoundRobin;
@@ -109,9 +110,13 @@ sub log_out {
 #  TOPページ表示  #
 #-----------------#
 sub html_top {
-    &read_winner;
-
-    &get_cookie;
+    my $winner = FFAdventure::Winner->new( dbh => $dbh );
+    my $bool = $winner->last();
+    if ($bool == 1) {
+        for my $key ( @{ $winner->parameter } ) {
+            ${ 'w' . $key } = $winner->$key;
+        }
+    }
 
     &class;
 
@@ -224,7 +229,7 @@ EOM
     <td align="center" class="b1">カルマ</td><td><b>$wlp</b></td>
     </tr>
     <tr>
-    <td colspan=5 align="center">$lname の <A HREF=\"http\:\/\/$lurl\" TARGET=\"_blank\">$lsite</A> に勝利！！</td>
+    <td colspan=5 align="center">$wlname の <A HREF=\"http\:\/\/$wlurl\" TARGET=\"_blank\">$wlsite</A> に勝利！！</td>
     </tr>
     </table>
 </td>
@@ -469,54 +474,19 @@ sub yado {
 
     $date = time();
 
-    # ファイルロック
-    if    ( $lockkey == 1 ) { &lock1; }
-    elsif ( $lockkey == 2 ) { &lock2; }
-    elsif ( $lockkey == 3 ) { &file'lock; }
+    my $chara = FFAdventure::Chara->new( dbh => $dbh, id => $in{id} );
+    my $bool = $chara->load();
+    my $yado_gold = $yado_dai * $chara->lv;
+    if ( $chara->gold < $yado_gold ) { &error("お金が足りません"); }
+    $chara->gold($chara->gold - $yado_gold);
+    $chara->hp($chara->maxhp);
+    $chara->save();
 
-    open( IN, "$chara_file" );
-    @YADO = <IN>;
-    close(IN);
-
-    $hit      = 0;
-    @yado_new = ();
-    foreach (@YADO) {
-        (
-            $yid,    $ypass, $ysite,  $yurl,  $yname, $ysex,  $ychara,
-            $yn_0,   $yn_1,  $yn_2,   $yn_3,  $yn_4,  $yn_5,  $yn_6,
-            $ysyoku, $yhp,   $ymaxhp, $yex,   $ylv,   $ygold, $ylp,
-            $ytotal, $ykati, $ywaza,  $yitem, $ymons, $yhost, $ydate
-        ) = split(/<>/);
-        if ( $in{'id'} eq "$yid" ) {
-            $yado_gold = $yado_dai * $ylv;
-            if   ( $ygold < $yado_gold ) { &error("お金が足りません"); }
-            else                         { $ygold = $ygold - $yado_gold; }
-            unshift( @yado_new,
-"$yid<>$ypass<>$ysite<>$yurl<>$yname<>$ysex<>$ychara<>$yn_0<>$yn_1<>$yn_2<>$yn_3<>$yn_4<>$yn_5<>$yn_6<>$ysyoku<>$ymaxhp<>$ymaxhp<>$yex<>$ylv<>$ygold<>$ylp<>$ytotal<>$ykati<>$ywaza<>$yitem<>$ymons<>$host<>$ydate<>\n"
-            );
-        }
-        else {
-            push( @yado_new, "$_" );
-        }
-    }
-
-    open( OUT, ">$chara_file" );
-    print OUT @yado_new;
-    close(OUT);
-
-    &read_winner;
-
-    if ( $wid eq "$in{'id'}" ) {
-        open( OUT, ">$winner_file" );
-        print OUT
-"$wid<>$wpass<>$wsite<>$wurl<>$wname<>$wsex<>$wchara<>$wn_0<>$wn_1<>$wn_2<>$wn_3<>$wn_4<>$wn_5<>$wn_6<>$wsyoku<>$wmaxhp<>$wmaxhp<>$wex<>$wlv<>$wgold<>$wlp<>$wtotal<>$wkati<>$wwaza<>$witem<>$wmons<>$host<>$ydate<>$wcount<>$lsite<>$lurl<>$lname<>\n";
-        close(OUT);
-    }
-
-    # ロック解除
-    if ( $lockkey == 3 ) { &file'unlock; }
-    else {
-        if ( -e $lockfile ) { unlink($lockfile); }
+    my $winner = FFAdventure::Winner->new( dbh => $dbh );
+    my $bool = $winner->last();
+    if ($bool == 1 && $winner->id eq $chara->id) {
+        $winner->hp($winner->maxhp);
+        $winner->save();
     }
 
     &header;
@@ -524,12 +494,6 @@ sub yado {
     print <<"EOM";
 <h1>体力を回復しました</h1>
 <hr size=0>
-<form action="$script_url" method="post">
-<input type=hidden name=mode value=log_in>
-<input type=hidden name=id value="$in{'id'}">
-<input type=hidden name=pass value="$in{'pass'}">
-<input type=submit value="ステータス画面へ">
-</form>
 EOM
 
     &footer;
@@ -909,67 +873,11 @@ EOM
 #  書き込み処理  #
 #----------------#
 sub regist {
-
-    # &set_cookie;
-
     &get_host;
 
     $date = time();
 
-    # ファイルロック
-    if    ( $lockkey == 1 ) { &lock1; }
-    elsif ( $lockkey == 2 ) { &lock2; }
-    elsif ( $lockkey == 3 ) { &file'lock; }
-
-    open( IN, "$chara_file" );
-    @regist = <IN>;
-    close(IN);
-
-    $hit = 0;
-    @new = ();
-    foreach (@regist) {
-        (
-            $cid,    $cpass, $csite,  $curl,  $cname, $csex,  $cchara,
-            $cn_0,   $cn_1,  $cn_2,   $cn_3,  $cn_4,  $cn_5,  $cn_6,
-            $csyoku, $chp,   $cmaxhp, $cex,   $clv,   $cgold, $clp,
-            $ctotal, $ckati, $cwaza,  $citem, $cmons, $chost, $cdate
-        ) = split(/<>/);
-        if ( $cid eq "$in{'id'}" and $in{'new'} eq 'new' ) {
-            &error("そのIDはすでに登録されています");
-        }
-        elsif ( $curl eq "$in{'url'}" and $in{'new'} eq 'new' ) {
-            &error("そのURLはすでに登録されています");
-        }
-        elsif ( $host eq "$chost" and $in{'new'} eq 'new' ) {
-            &error(
-"一人り一キャラクターです。守れない場合アクセス制限をかけさせていただきます。このエラーを出したあなたのIPアドレスを保存しています。"
-            );
-        }
-        elsif ( $cid eq "$kid" ) {
-            my $chara = FFAdventure::Chara->new( dbh => $dbh, id => $kid );
-            $chara->load();
-            my $attr = $chara->convertArray2ref(
-                $kid, $kpass, $ksite, $kurl, $kname, $ksex, $kchara,
-                $kn_0, $kn_1, $kn_2, $kn_3, $kn_4, $kn_5, $kn_6,
-                $ksyoku, $khp, $kmaxhp, $kex, $klv, $kgold, $klp,
-                $ktotal, $kkati, $kwaza, $kitem, $kmons, $host, $date
-            );
-            eval {
-                $chara->fill($attr);
-                $chara->save();
-            };
-            if ($@) {
-                &error($@);
-            }
-            $hit = 1;
-        }
-        else {
-            if ( ( $date - $cdate ) > ( 60 * 60 * 24 * $limit ) ) { next; }
-            push( @new, "$_" );
-        }
-    }
-
-    if ( !$hit and $in{'new'} eq 'new' ) {
+    if ( $in{'new'} eq 'new' ) {
         $lp = int( rand(15) );
         $hp = int( ( $in{'n_3'} + $kiso_nouryoku[3] ) + ( rand($lp) + 1 ) ) +
           $kiso_hp;
@@ -1004,16 +912,32 @@ sub regist {
         if ($@) {
             &error($@);
         }
-    }
-
-    open( OUT, ">$chara_file" );
-    print OUT @new;
-    close(IN);
-
-    # ロック解除
-    if ( $lockkey == 3 ) { &file'unlock; }
-    else {
-        if ( -e $lockfile ) { unlink($lockfile); }
+    } else {
+        my $chara = FFAdventure::Chara->new( dbh => $dbh, id => $kid );
+        $chara->load();
+        $ksyoku ||= 0;
+        $kn_0 ||= 0;
+        $kn_1 ||= 0;
+        $kn_2 ||= 0;
+        $kn_3 ||= 0;
+        $kn_4 ||= 0;
+        $kn_5 ||= 0;
+        $kn_6 ||= 0;
+        $klp ||= 0;
+        $kitem ||= '0000';
+        my $attr = $chara->convertArray2ref(
+            $kid, $kpass, $ksite, $kurl, $kname, $ksex, $kchara,
+            $kn_0, $kn_1, $kn_2, $kn_3, $kn_4, $kn_5, $kn_6,
+            $ksyoku, $khp, $kmaxhp, $kex, $klv, $kgold, $klp,
+            $ktotal, $kkati, $kwaza, $kitem, $kmons, $host, $date
+        );
+        eval {
+            $chara->fill($attr);
+            $chara->save();
+        };
+        if ($@) {
+            &error($@);
+        }
     }
 
     if ( $in{'new'} ) { &make_end; }
@@ -1369,8 +1293,6 @@ sub message {
 <hr size=0>
 <form action="$script_url" method="post">
 <input type=hidden name=mode value=log_in>
-<input type=hidden name=id value="$in{'id'}">
-<input type=hidden name=pass value="$in{'pass'}">
 <input type=submit value="ログイン画面へ戻る">
 </form>
 EOM
@@ -1464,8 +1386,6 @@ sub tensyoku {
 <p>
 <form action="$script_url" method="post">
 <input type="hidden" name=id value="$in{'id'}">
-<input type="hidden" name=pass value="$in{'pass'}">
-<input type="hidden" name=mode value=log_in>
 <input type="submit" value="ステータス画面へ">
 </form>
 EOM
@@ -1487,18 +1407,10 @@ sub battle {
 
     $battle_flag = 1;
 
-    open( IN, "$chara_file" );
-    @battle = <IN>;
-    close(IN);
-
-    foreach (@battle) {
-        (
-            $kid,    $kpass, $ksite,  $kurl,  $kname, $ksex,  $kchara,
-            $kn_0,   $kn_1,  $kn_2,   $kn_3,  $kn_4,  $kn_5,  $kn_6,
-            $ksyoku, $khp,   $kmaxhp, $kex,   $klv,   $kgold, $klp,
-            $ktotal, $kkati, $kwaza,  $kitem, $kmons, $khost, $kdate
-        ) = split(/<>/);
-        if ( $in{'id'} eq "$kid" ) { last; }
+    my $chara = FFAdventure::Chara->new( dbh => $dbh, id => $in{id} );
+    my $bool = $chara->load();
+    for my $key ( @{ $chara->parameter } ) {
+        ${ 'k' . $key } = $chara->$key;
     }
 
     $ltime = time();
@@ -1510,7 +1422,21 @@ sub battle {
         &error("$vtime秒後闘えるようになります。\n");
     }
 
-    &read_winner;
+    my $winner = FFAdventure::Winner->new( dbh => $dbh );
+    my $bool = $winner->last();
+    for my $key ( @{ $winner->parameter } ) {
+        ${ 'w' . $key } = $winner->$key;
+    }
+
+    if ($bool == 0) {
+        $winner->fill($chara->toArray());
+        $winner->lsite($chara->site);
+        $winner->lurl($chara->url);
+        $winner->lname($chara->name);
+        $winner->count(1);
+        $winner->save();
+        &error("チャンプがいない為、自分がチャンプになりました。");
+    }
 
     if ( $wid eq $kid ) {
         &error("現在チャンプなので闘えません。");
@@ -2027,17 +1953,13 @@ EOM
 #  チャンプ読み込み  #
 #--------------------#
 sub read_winner {
-    open( IN, "$winner_file" );
-    @winner = <IN>;
-    close(IN);
-
-    (
-        $wid,    $wpass, $wsite,  $wurl,  $wname, $wsex,  $wchara,
-        $wn_0,   $wn_1,  $wn_2,   $wn_3,  $wn_4,  $wn_5,  $wn_6,
-        $wsyoku, $whp,   $wmaxhp, $wex,   $wlv,   $wgold, $wlp,
-        $wtotal, $wkati, $wwaza,  $witem, $wmons, $whost, $wdate,
-        $wcount, $lsite, $lurl,   $lname
-    ) = split( /<>/, $winner[0] );
+    my $winner = FFAdventure::Winner->new( dbh => $dbh );
+    my $bool = $winner->last();
+    if ($bool == 1) {
+        for my $key ( @{ $winner->parameter } ) {
+            ${ 'w' . $key } = $winner->$key;
+        }
+    }
 }
 
 #--------------#
@@ -2721,9 +2643,9 @@ sub monster {
         &error("$mtime秒後闘えるようになります。<br>\n");
     }
 
-    if ( !$kmons ) {
-        &error("一度キャラクターと闘ってください");
-    }
+#   if ( !$kmons ) {
+#       &error("一度キャラクターと闘ってください");
+#   }
 
     open( IN, "$monster_file" );
     @MONSTER = <IN>;
@@ -3019,7 +2941,7 @@ sub error {
     print "<center><hr width=400><h3>ERROR !</h3>\n";
     print "<P><font color=red><B>$_[0]</B></font>\n";
     print "<P><hr width=400></center>\n";
-    print "</body></html>\n";
+    &footer();
     exit;
 }
 
@@ -3201,47 +3123,6 @@ sub lock2 {
     if ( !$retry ) {
         &error("しばらくお待ちになってください(^^;)");
     }
-}
-
-#------------------#
-#  クッキーの発行  #
-#------------------#
-sub set_cookie {
-
-    # クッキーは60日間有効
-    local ( $sec, $min, $hour, $mday, $mon, $year, $wday ) =
-      gmtime( time + 60 * 24 * 60 * 60 );
-
-    @month = (
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    );
-    $gmt = sprintf(
-        "%s, %02d-%s-%04d %02d:%02d:%02d GMT",
-        $week[$wday], $mday, $month[$mon], $year + 1900,
-        $hour, $min, $sec
-    );
-    $cook = "id<>$cookie_id\,pass<>$cookie_pass";
-    print "Set-Cookie: FFADV=$cook; expires=$gmt; path=$script_url\n";
-}
-
-#------------------#
-#  クッキーを取得  #
-#------------------#
-sub get_cookie {
-    @pairs = split( /;/, $ENV{'HTTP_COOKIE'} );
-    foreach (@pairs) {
-        local ( $key, $val ) = split(/=/);
-        $key =~ s/\s//g;
-        $GET{$key} = $val;
-    }
-    @pairs = split( /,/, $GET{'FFADV'} );
-    foreach (@pairs) {
-        local ( $key, $val ) = split(/<>/);
-        $COOK{$key} = $val;
-    }
-    $c_id   = $COOK{'id'};
-    $c_pass = $COOK{'pass'};
 }
 
 #--------------#

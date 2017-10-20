@@ -1129,10 +1129,10 @@ EOM
 <input type="hidden" name="mode" value="battle" />
 EOM
     if ( $ltime >= $b_time or !$ktotal ) {
-        print "<input type=\"submit\" value=\"チャンプに挑戦\">\n";
+        say "<input type=\"submit\" value=\"チャンプに挑戦\">";
     }
     else {
-        print "$vtime秒後闘えるようになります。\n";
+        say $vtime. "秒後闘えるようになります。";
     }
 
     print <<"EOM";
@@ -1228,22 +1228,17 @@ EOM
 </td>
 </tr>
 </table>
-【届いているメッセージ】表\示数<b>$max_gyo</b>件まで<br>
+【届いているメッセージ】表示数<b>$max_gyo</b>件まで<br>
 EOM
 
-    my $rs = $schema->resultset('Message')->search( [ { from => $chara->no }, { to => $chara->no } ] );
-
+    my $rs = $schema->resultset('Message')->search( [ { from => $chara->no }, { to => $chara->no } ], { limit => $max_gyo } );
     while ( my $mes = $rs->next ) {
-        if ( $mes->from eq $chara->no ) {
-            my $from = &chara_load( { no => $mes->from } );
-            my $to = &chara_load( { no => $mes->to } );
-            printf("<hr size=0><small>%s さんから %s さんへ　＞ 「%s」(%s)</small><br>", $from->name, $to->name, $mes->mes, $mes->date);
-        } else {
-            my $from = &chara_load( { no => $mes->from } );
-            my $to = &chara_load( { no => $mes->to } );
-            printf("<hr size=0><small><b>%s さん</b>　＞ 「<b>%s</b>」(%s)</small><br />", $from->name, $mes->mes, $mes->date);
-        }
+        my $from = &chara_load( { no => $mes->from } );
+        my $to = &chara_load( { no => $mes->to } );
+        printf("<hr size=0><small>%s さんから %s さんへ　＞ 「%s」(%s)</small><br>", $from->name, $to->name, $mes->mes, $mes->date);
     }
+
+    say '<hr size="0" />';
 
     &footer;
 

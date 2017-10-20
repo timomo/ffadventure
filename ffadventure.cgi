@@ -82,7 +82,13 @@ exit(0);
 
 sub chara_load {
     my $id  = shift;
-    my $rs  = $schema->resultset('Chara')->search( { id => $id } );
+    my $cond = {};
+    if (ref $id eq 'HASH') {
+        $cond = $id;
+    } else {
+        $cond = { id => $id };
+    }
+    my $rs  = $schema->resultset('Chara')->search( $cond );
     my $row = $rs->next;
     return $row;
 }
@@ -526,19 +532,17 @@ sub yado {
 
     $date = time();
 
-    my $chara     = FFAdventure::Chara->new( dbh => $dbh, id => $in{id} );
-    my $bool      = $chara->load();
+    my $chara     = &chara_load( $session->param('id') ) || &error( "入力されたIDは登録されていません。又はパスワードが違います。");
     my $yado_gold = $yado_dai * $chara->lv;
     if ( $chara->gold < $yado_gold ) { &error("お金が足りません"); }
     $chara->gold( $chara->gold - $yado_gold );
     $chara->hp( $chara->maxhp );
-    $chara->save();
+    $chara->update();
 
-    my $winner = FFAdventure::Winner->new( dbh => $dbh );
-    my $bool = $winner->last();
-    if ( $bool == 1 && $winner->id eq $chara->id ) {
+    my $winner = &winner_load();
+    if ( defined($winner) && $winner->id eq $chara->id ) {
         $winner->hp( $winner->maxhp );
-        $winner->save();
+        $winner->update();
     }
 
     &header;
@@ -596,21 +600,19 @@ sub chara_make {
 <td><select name="chara">
 EOM
 
-    $i = 0;
-    foreach (@chara_name) {
-        print "<option value=\"$i\">$chara_name[$i]\n";
-        $i++;
+    foreach my $i (0 .. $#chara_name) {
+        print "<option value=\"$i\">$chara_name[$i]</option>";
     }
 
     print <<"EOM";
 </select><br><small>△作成するキャラクターの性別を選択してください。</small></td>
 </tr>
 <tr>
-<td class="b1">キャラクターの能\力</td>
+<td class="b1">キャラクターの能力</td>
 <td>
     <table border=1>
     <tr>
-    <td class="b2" width="70">力</td><td class="b2" width="70">知能\</td><td class="b2" width="70">信仰心</td><td class="b2" width="70">生命力</td><td class="b2" width="70">器用さ</td><td class="b2" width="70">速さ</td><td class="b2" width="70">魅力</td>
+    <td class="b2" width="70">力</td><td class="b2" width="70">知能</td><td class="b2" width="70">信仰心</td><td class="b2" width="70">生命力</td><td class="b2" width="70">器用さ</td><td class="b2" width="70">速さ</td><td class="b2" width="70">魅力</td>
     </tr>
     <tr>
 EOM
@@ -623,7 +625,7 @@ EOM
     foreach ( 0 .. 6 ) {
         print "<td>$kiso_nouryoku[$i] + <select name=n_$i>\n";
         foreach ( 0 .. $point ) {
-            print "<option value=\"$j\">$j\n";
+            print "<option value=\"$j\">$j</option>";
             $j++;
         }
         print "</select>\n";
@@ -1042,10 +1044,6 @@ sub top {
     my $site = $ksite;
     my $name = $kname;
 
-    print <<"EOM";
-<h1>$nameさん用ステータス画面</h1>
-<hr size=0>
-EOM
     if ( $ltime < $b_time or !$ktotal ) {
         print <<"EOM";
 <FORM NAME="form1">
@@ -1128,9 +1126,7 @@ EOM
 </tr>
 <tr>
 <td colspan="5" align="center">
-<input type="hidden" name=mode value=battle>
-<input type="hidden" name=id value="$kid">
-<input type="hidden" name=pass value="$kpass">
+<input type="hidden" name="mode" value="battle" />
 EOM
     if ( $ltime >= $b_time or !$ktotal ) {
         print "<input type=\"submit\" value=\"チャンプに挑戦\">\n";
@@ -1188,18 +1184,16 @@ EOM
 <br>
 　<small>※ 転職すると、全ての能\力値が転職した職業の初期値になります。また、LVも1になります。</small>
 </form>
-<form action="$script_url" method="post">
+<form action="$script_url" method="get">
 【魔物と戦い修行できます】<br>
-<input type=hidden name=id value=$kid>
-<input type=hidden name=pass value=$kpass>
-<input type=hidden name=mode value=monster>
+<input type="hidden" name="mode" value="monster" />
 EOM
 
     if ( $ltime >= $m_time or !$ktotal ) {
-        print "<input type=submit value=\"モンスターと闘う\"><br>\n";
+        say "<input type=submit value=\"モンスターと闘う\"><br />";
     }
     else {
-        print "$mtime秒後闘えるようになります。<br>\n";
+        say $mtime. " 秒後闘えるようになります。<br />";
     }
 
     $yado_gold = $yado_dai * $klv;
@@ -1209,10 +1203,8 @@ EOM
 </form>
 <form action="$script_url" method="post">
 【旅の宿】<br>
-<input type=hidden name=id value=$kid>
-<input type=hidden name=pass value=$kpass>
-<input type=hidden name=mode value=yado>
-<input type=submit value="体力を回復"><br>
+<input type="hidden" name="mode" value="yado" />
+<input type="submit" value="体力を回復"><br>
 　<small>※体力を回復することができます。<b>$yado_gold</b>G必要です。現在チャンプの方も回復できます。こまめに回復すれば連勝記録も・・・。</small>
 </form>
 <form action="$script_url" method="post">
@@ -1222,22 +1214,14 @@ EOM
 <option value="">送る相手を選択
 EOM
 
-    open( IN, "$chara_file" );
-    @MESSAGE = <IN>;
-    close(IN);
-
-    foreach (@MESSAGE) {
-        ( $did, $dpass, $dsite, $durl, $dname ) = split(/<>/);
-        if ( $kid eq $did ) { next; }
-        print "<option value=$did>$dnameさんへ\n";
+    my $rs  = $schema->resultset('Chara')->search( { id => { '!=' => $session->param('id') } } );
+    while (my $row = $rs->next) {
+        printf(qq|<option value="%d">%s さんへ</option>|, $row->no, $row->name);
     }
 
     print <<"EOM";
 </select>
-<input type=hidden name=id value=$kid>
-<input type=hidden name=name value=$kname>
-<input type=hidden name=pass value=$kpass>
-<input type=hidden name=mode value=message>
+<input type="hidden" name="mode" value="message" />
 <input type=submit value="メッセージを送る"><br>
 　<small>※他のキャラクターへメッセージを送ることができます。</small>
 </form>
@@ -1247,31 +1231,19 @@ EOM
 【届いているメッセージ】表\示数<b>$max_gyo</b>件まで<br>
 EOM
 
-    open( IN, "$message_file" );
-    @MESSAGE_LOG = <IN>;
-    close(IN);
+    my $rs = $schema->resultset('Message')->search( [ { from => $chara->no }, { to => $chara->no } ] );
 
-    $hit = 0;
-    $i   = 1;
-    foreach (@MESSAGE_LOG) {
-        ( $pid, $hid, $hname, $hmessage, $hhname, $htime ) = split(/<>/);
-        if ( $kid eq "$pid" ) {
-            if ( $max_gyo < $i ) { last; }
-            print
-"<hr size=0><small><b>$hnameさん</b>　＞ 「<b>$hmessage</b>」($htime)</small><br>\n";
-            $hit = 1;
-            $i++;
-        }
-        elsif ( $kid eq "$hid" ) {
-            print
-"<hr size=0><small>$knameさんから$hhnameさんへ　＞ 「$hmessage」($htime)</small><br>\n";
+    while ( my $mes = $rs->next ) {
+        if ( $mes->from eq $chara->no ) {
+            my $from = &chara_load( { no => $mes->from } );
+            my $to = &chara_load( { no => $mes->to } );
+            printf("<hr size=0><small>%s さんから %s さんへ　＞ 「%s」(%s)</small><br>", $from->name, $to->name, $mes->mes, $mes->date);
+        } else {
+            my $from = &chara_load( { no => $mes->from } );
+            my $to = &chara_load( { no => $mes->to } );
+            printf("<hr size=0><small><b>%s さん</b>　＞ 「<b>%s</b>」(%s)</small><br />", $from->name, $mes->mes, $mes->date);
         }
     }
-    if ( !$hit ) {
-        print
-"<hr size=0>$knameさん宛てのメッセージはありません<p>\n";
-    }
-    print "<hr size=0><p>";
 
     &footer;
 
@@ -1299,64 +1271,17 @@ sub message {
 
     &get_time;
 
-    # ファイルロック
-    if    ( $lockkey == 1 ) { &lock1; }
-    elsif ( $lockkey == 2 ) { &lock2; }
-    elsif ( $lockkey == 3 ) { &file'lock; }
-
-    open( IN, "$message_file" );
-    @mes_regist = <IN>;
-    close(IN);
-
-    open( IN, "$chara_file" );
-    @MESSAGE = <IN>;
-    close(IN);
-
-    foreach (@MESSAGE) {
-        ( $did, $dpass, $dsite, $durl, $dname ) = split(/<>/);
-        if ( $in{'mesid'} eq "$did" ) { last; }
-    }
-
-    $mes_max = @mes_regist;
-
-    if ( $mes_max > $max ) { pop(@mes_regist); }
-
-    my $from =
-      FFAdventure::Chara->new( dbh => $dbh, id => $session->param('id') );
-    my $bool = $from->load();
-    my $to = FFAdventure::Chara->new( dbh => $dbh, id => $in{mesid} );
-    $bool = $to->load();
-
-    my $mes = FFAdventure::Message->new(
-        dbh   => $dbh,
-        id    => $from->id,
-        mesid => $to->id
-    );
+    my $from = &chara_load( $session->param('id') ) || &error( "入力されたIDは登録されていません。又はパスワードが違います。");
+    my $to   = &chara_load( { no => $in{mesid} } ) || &error( "送信先がいません。");
+    my $mes  = $schema->resultset('Message')->new( {} );
+    $mes->from($from->no);
+    $mes->to($to->no);
     $mes->mes( $in{mes} );
-    $mes->gettime($gettime);
-    $mes->save();
-
-    open( OUT, ">$message_file" );
-    print OUT @mes_regist;
-    close(OUT);
-
-    # ロック解除
-    if ( $lockkey == 3 ) { &file'unlock; }
-    else {
-        if ( -e $lockfile ) { unlink($lockfile); }
-    }
+    $mes->date(time);
+    $mes->insert();
 
     &header;
-
-    print <<"EOM";
-<h1>$dnameさんへメッセージを送りました。</h1>
-<hr size=0>
-<form action="$script_url" method="post">
-<input type=hidden name=mode value=log_in>
-<input type=submit value="ログイン画面へ戻る">
-</form>
-EOM
-
+    say 'メッセージを送りました。';
     &footer;
 
     exit;
@@ -1499,7 +1424,7 @@ sub battle {
 "チャンプがいない為、自分がチャンプになりました。"
         );
     }
-    &winner_set($chara);
+    &winner_set($winner);
 
     if ( $wid eq $kid ) {
         &error("現在チャンプなので闘えません。");

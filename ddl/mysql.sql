@@ -5,7 +5,8 @@ CREATE TABLE sessions (
 );
 DROP TABLE IF EXISTS chara;
 CREATE TABLE chara (
-    id VARCHAR(8) NOT NULL PRIMARY KEY,
+    no bigint(20) unsigned NOT NULL auto_increment PRIMARY KEY,
+    id VARCHAR(8) NOT NULL,
     pass VARCHAR(8) NOT NULL,
     site TEXT NOT NULL,
     url TEXT NOT NULL,
@@ -73,10 +74,8 @@ CREATE TABLE winner (
 DROP TABLE IF EXISTS message;
 CREATE TABLE message (
     no bigint(20) unsigned NOT NULL auto_increment PRIMARY KEY,
-    mesid VARCHAR(8) NOT NULL,
-    id VARCHAR(8) NOT NULL,
-    name TEXT NOT NULL,
+    `from` BIGINT UNSIGNED NOT NULL,
+    `to` BIGINT UNSIGNED NOT NULL,
     mes TEXT NOT NULL,
-    dname TEXT NOT NULL,
     date BIGINT UNSIGNED NOT NULL
 );

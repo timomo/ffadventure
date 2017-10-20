@@ -70,3 +70,13 @@ CREATE TABLE winner (
     lurl TEXT NOT NULL,
     lname TEXT NOT NULL
 );
+DROP TABLE IF EXISTS message;
+CREATE TABLE message (
+    no bigint(20) unsigned NOT NULL auto_increment PRIMARY KEY,
+    mesid VARCHAR(8) NOT NULL,
+    id VARCHAR(8) NOT NULL,
+    name TEXT NOT NULL,
+    mes TEXT NOT NULL,
+    dname TEXT NOT NULL,
+    date BIGINT UNSIGNED NOT NULL
+);

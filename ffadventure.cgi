@@ -12,6 +12,7 @@ use FFAdventure::Winner;
 use utf8;
 use Encode;
 use Data::WeightedRoundRobin;
+use FFAdventure::Schema;
 
 #--- [注意事項] ------------------------------------------------#
 # 1. このスクリプトはフリーソフトです。このスクリプトを使用した    #
@@ -41,6 +42,7 @@ my $dbh = DBI->connect( $dsn, $dbuser, $dbpass, $dbopts )
 my $cgi     = CGI->new();
 my $session = CGI::Session->load( 'driver:mysql', $cgi, { Handle => $dbh } );
 my %in      = ();
+my $schema  = FFAdventure::Schema->connect( $dsn, $dbuser, $dbpass, $dbopts );
 
 if ($mente) {
     &error(
@@ -53,8 +55,8 @@ if ( $session->is_empty() ) {
     $session = $session->new();
 }
 else {
-    $in{id}   = $session->param('id');
-    $in{pass} = $session->param('pass');
+    # $in{id}   = $session->param('id');
+    # $in{pass} = $session->param('pass');
 }
 $session->expire('+1h');
 
@@ -78,12 +80,67 @@ given ( $cgi->param('mode') ) {
 $session->flush();
 exit(0);
 
+sub chara_load {
+    my $id  = shift;
+    my $rs  = $schema->resultset('Chara')->search( { id => $id } );
+    my $row = $rs->next;
+    return $row;
+}
+
+sub chara_array {
+    return (
+        qw/id pass site url name sex chara n_0 n_1 n_2 n_3 n_4 n_5 n_6 syoku hp maxhp ex lv gold lp total kati waza item mons host date/
+    );
+}
+
+sub chara_convert {
+    my $ref = {};
+    my @key = &chara_array();
+    @$ref{@key} = @_;
+    return $ref;
+}
+
+sub chara_set {
+    my $chara = shift;
+    if ( !defined($chara) ) {
+        return 0;
+    }
+    my @key = &chara_array();
+    for my $key (@key) {
+        ${ 'main::k' . $key } = $chara->$key;
+    }
+    return 1;
+}
+
+sub winner_load {
+    my $rs = $schema->resultset('Winner')
+      ->search( {}, { order_by => { -desc => 'no' } } );
+    my $row = $rs->next;
+    return $row;
+}
+
+sub winner_array {
+    my @key = &chara_array();
+    return ( @key, qw/count lsite lurl lname/ );
+}
+
+sub winner_set {
+    my $chara = shift;
+    if ( !defined($chara) ) {
+        return 0;
+    }
+    my @key = &winner_array();
+    for my $key (@key) {
+        ${ 'main::w' . $key } = $chara->$key;
+    }
+    return 1;
+}
+
 sub log_in {
     my $id    = $cgi->param('id');
     my $pass  = $cgi->param('pass');
-    my $chara = FFAdventure::Chara->new( dbh => $dbh, id => $id );
-    $chara->load();
-    if ( $chara->in_storage == 1 && $chara->pass == $pass ) {
+    my $chara = &chara_load($id);
+    if ( defined($chara) && $chara->pass == $pass ) {
         $session->param( 'id',   $id );
         $session->param( 'pass', $pass );
     }
@@ -110,13 +167,8 @@ sub log_out {
 #  TOPページ表示  #
 #-----------------#
 sub html_top {
-    my $winner = FFAdventure::Winner->new( dbh => $dbh );
-    my $bool = $winner->last();
-    if ($bool == 1) {
-        for my $key ( @{ $winner->parameter } ) {
-            ${ 'w' . $key } = $winner->$key;
-        }
-    }
+    my $winner = &winner_load();
+    &winner_set($winner);
 
     &class;
 
@@ -474,18 +526,18 @@ sub yado {
 
     $date = time();
 
-    my $chara = FFAdventure::Chara->new( dbh => $dbh, id => $in{id} );
-    my $bool = $chara->load();
+    my $chara     = FFAdventure::Chara->new( dbh => $dbh, id => $in{id} );
+    my $bool      = $chara->load();
     my $yado_gold = $yado_dai * $chara->lv;
     if ( $chara->gold < $yado_gold ) { &error("お金が足りません"); }
-    $chara->gold($chara->gold - $yado_gold);
-    $chara->hp($chara->maxhp);
+    $chara->gold( $chara->gold - $yado_gold );
+    $chara->hp( $chara->maxhp );
     $chara->save();
 
     my $winner = FFAdventure::Winner->new( dbh => $dbh );
     my $bool = $winner->last();
-    if ($bool == 1 && $winner->id eq $chara->id) {
-        $winner->hp($winner->maxhp);
+    if ( $bool == 1 && $winner->id eq $chara->id ) {
+        $winner->hp( $winner->maxhp );
         $winner->save();
     }
 
@@ -590,7 +642,7 @@ EOM
 <td colspan="2" align="center"><input type="submit" value="これで登録"></td>
 </tr>
 </table>
-<input type="hidden" name=point value="$point">
+<input type="hidden" name="point" value="$point">
 </form>
 EOM
 
@@ -892,48 +944,51 @@ sub regist {
         $n_5     = $kiso_nouryoku[5] + $in{'n_5'};
         $n_6     = $kiso_nouryoku[6] + $in{'n_6'};
         $c_syoku = $in{'syoku'};
-        $item ||= '0000';
-        $mons ||= 0;
-        $kati ||= 0;
+        $item  ||= '0000';
+        $mons  ||= 0;
+        $kati  ||= 0;
         $total ||= 0;
-        $waza ||= 'コメントなし';
-        my $chara = FFAdventure::Chara->new( dbh => $dbh, id => $in{id} );
-        $chara->load();
-        my $attr = $chara->convertArray2ref(
-            $in{id}, $in{pass}, $in{site}, $in{url}, $in{c_name}, $in{sex}, $in{chara},
-            $n_0, $n_1, $n_2, $n_3, $n_4, $n_5, $n_6,
-            $c_syoku, $hp, $hp, $ex, $lv, $gold, $lp,
-            $total, $kati, $waza, $item, $mons, $host, $date
+        $waza  ||= 'コメントなし';
+
+        my $chara = &chara_load( $in{id} );
+        $chara = $schema->resultset('Chara')->new( {} );
+        my $attr = &chara_convert(
+            $in{id},  $in{pass},  $in{site}, $in{url}, $in{c_name},
+            $in{sex}, $in{chara}, $n_0,      $n_1,     $n_2,
+            $n_3,     $n_4,       $n_5,      $n_6,     $c_syoku,
+            $hp,      $hp,        $ex,       $lv,      $gold,
+            $lp,      $total,     $kati,     $waza,    $item,
+            $mons,    $host,      $date
         );
         eval {
-            $chara->fill($attr);
-            $chara->save();
+            $chara->set_columns($attr);
+            $chara->insert();
         };
         if ($@) {
             &error($@);
         }
-    } else {
-        my $chara = FFAdventure::Chara->new( dbh => $dbh, id => $kid );
-        $chara->load();
+    }
+    else {
+        my $chara = &chara_load( $session->param('id') );
         $ksyoku ||= 0;
-        $kn_0 ||= 0;
-        $kn_1 ||= 0;
-        $kn_2 ||= 0;
-        $kn_3 ||= 0;
-        $kn_4 ||= 0;
-        $kn_5 ||= 0;
-        $kn_6 ||= 0;
-        $klp ||= 0;
-        $kitem ||= '0000';
-        my $attr = $chara->convertArray2ref(
-            $kid, $kpass, $ksite, $kurl, $kname, $ksex, $kchara,
-            $kn_0, $kn_1, $kn_2, $kn_3, $kn_4, $kn_5, $kn_6,
-            $ksyoku, $khp, $kmaxhp, $kex, $klv, $kgold, $klp,
-            $ktotal, $kkati, $kwaza, $kitem, $kmons, $host, $date
+        $kn_0   ||= 0;
+        $kn_1   ||= 0;
+        $kn_2   ||= 0;
+        $kn_3   ||= 0;
+        $kn_4   ||= 0;
+        $kn_5   ||= 0;
+        $kn_6   ||= 0;
+        $klp    ||= 0;
+        $kitem  ||= '0000';
+        my $attr = &chara_convert(
+            $kid,    $kpass, $ksite,  $kurl,  $kname, $ksex,  $kchara,
+            $kn_0,   $kn_1,  $kn_2,   $kn_3,  $kn_4,  $kn_5,  $kn_6,
+            $ksyoku, $khp,   $kmaxhp, $kex,   $klv,   $kgold, $klp,
+            $ktotal, $kkati, $kwaza,  $kitem, $kmons, $host,  $date
         );
         eval {
-            $chara->fill($attr);
-            $chara->save();
+            $chara->set_columns($attr);
+            $chara->update();
         };
         if ($@) {
             &error($@);
@@ -954,23 +1009,17 @@ sub top {
     elsif ( $lockkey == 2 ) { &lock2; }
     elsif ( $lockkey == 3 ) { &file'lock; }
 
-    my $chara = FFAdventure::Chara->new( dbh => $dbh, id => $session->param('id') );
-    my $bool = $chara->load();
-
-    if ( $chara->in_storage == 0 ) {
-        &error(
+    my $chara =
+      &chara_load( $session->param('id') )
+      || &error(
 "入力されたIDは登録されていません。又はパスワードが違います。"
-        );
-    }
+      );
+    &chara_set($chara);
 
     $ltime = time();
     $ltime = $ltime - $kdate;
     $vtime = $b_time - $ltime;
     $mtime = $m_time - $ltime;
-
-    for my $key ( @{ $chara->parameter } ) {
-        ${ 'k' . $key } = $chara->$key;
-    }
 
     &class;
 
@@ -1272,9 +1321,20 @@ sub message {
 
     if ( $mes_max > $max ) { pop(@mes_regist); }
 
-    unshift( @mes_regist,
-        "$in{'mesid'}<>$in{'id'}<>$in{'name'}<>$in{'mes'}<>$dname<>$gettime<>\n"
+    my $from =
+      FFAdventure::Chara->new( dbh => $dbh, id => $session->param('id') );
+    my $bool = $from->load();
+    my $to = FFAdventure::Chara->new( dbh => $dbh, id => $in{mesid} );
+    $bool = $to->load();
+
+    my $mes = FFAdventure::Message->new(
+        dbh   => $dbh,
+        id    => $from->id,
+        mesid => $to->id
     );
+    $mes->mes( $in{mes} );
+    $mes->gettime($gettime);
+    $mes->save();
 
     open( OUT, ">$message_file" );
     print OUT @mes_regist;
@@ -1364,7 +1424,7 @@ sub tensyoku {
     print OUT @ten_new;
     close(IN);
 
-    &read_winner;
+    # &read_winner;
 
     if ( $id eq $wid ) {
         open( OUT, ">$winner_file" );
@@ -1407,11 +1467,12 @@ sub battle {
 
     $battle_flag = 1;
 
-    my $chara = FFAdventure::Chara->new( dbh => $dbh, id => $in{id} );
-    my $bool = $chara->load();
-    for my $key ( @{ $chara->parameter } ) {
-        ${ 'k' . $key } = $chara->$key;
-    }
+    my $chara =
+      &chara_load( $session->param('id') )
+      || &error(
+"入力されたIDは登録されていません。又はパスワードが違います。"
+      );
+    &chara_set($chara);
 
     $ltime = time();
     $ltime = $ltime - $kdate;
@@ -1422,21 +1483,23 @@ sub battle {
         &error("$vtime秒後闘えるようになります。\n");
     }
 
-    my $winner = FFAdventure::Winner->new( dbh => $dbh );
-    my $bool = $winner->last();
-
-    if ($bool == 0) {
-        $winner->fill($chara->toArray());
-        $winner->lsite($chara->site);
-        $winner->lurl($chara->url);
-        $winner->lname($chara->name);
+    my $winner = &winner_load();
+    if ( !defined($winner) ) {
+        $winner = $schema->resultset('Winner')->new( {} );
+        my @keys = &chara_array();
+        for my $key (@keys) {
+            $winner->$key( $chara->$key );
+        }
+        $winner->lsite( $chara->site );
+        $winner->lurl( $chara->url );
+        $winner->lname( $chara->name );
         $winner->count(1);
-        $winner->save();
-        &error("チャンプがいない為、自分がチャンプになりました。");
+        $winner->insert();
+        &error(
+"チャンプがいない為、自分がチャンプになりました。"
+        );
     }
-    for my $key ( @{ $winner->parameter } ) {
-        ${ 'w' . $key } = $winner->$key;
-    }
+    &winner_set($chara);
 
     if ( $wid eq $kid ) {
         &error("現在チャンプなので闘えません。");
@@ -1947,19 +2010,6 @@ EOM
     $battle_flag = 0;
 
     exit;
-}
-
-#--------------------#
-#  チャンプ読み込み  #
-#--------------------#
-sub read_winner {
-    my $winner = FFAdventure::Winner->new( dbh => $dbh );
-    my $bool = $winner->last();
-    if ($bool == 1) {
-        for my $key ( @{ $winner->parameter } ) {
-            ${ 'w' . $key } = $winner->$key;
-        }
-    }
 }
 
 #--------------#
@@ -2628,11 +2678,12 @@ sub monster {
 
     $battle_flag = 1;
 
-    my $chara = FFAdventure::Chara->new( dbh => $dbh, id => $in{id} );
-    my $bool = $chara->load();
-    for my $key ( @{ $chara->parameter } ) {
-        ${ 'k' . $key } = $chara->$key;
-    }
+    my $chara =
+      &chara_load( $session->param('id') )
+      || &error(
+"入力されたIDは登録されていません。又はパスワードが違います。"
+      );
+    &chara_set($chara);
 
     $ltime = time();
     $ltime = $ltime - $kdate;
@@ -2643,19 +2694,20 @@ sub monster {
         &error("$mtime秒後闘えるようになります。<br>\n");
     }
 
-#   if ( !$kmons ) {
-#       &error("一度キャラクターと闘ってください");
-#   }
+    #   if ( !$kmons ) {
+    #       &error("一度キャラクターと闘ってください");
+    #   }
 
     open( IN, "$monster_file" );
     @MONSTER = <IN>;
     close(IN);
 
     my $dwr = Data::WeightedRoundRobin->new();
-    for my $no (0 .. $#MONSTER) {
-        my ( $mname, $mex, $mhp, $msp, $mdmg, $dummy ) = split( /<>/, $MONSTER[$no] );
+    for my $no ( 0 .. $#MONSTER ) {
+        my ( $mname, $mex, $mhp, $msp, $mdmg, $dummy ) =
+          split( /<>/, $MONSTER[$no] );
         my $seed = $chara->maxhp / $mhp;
-        $dwr->add({ value => $no, weight => $seed });
+        $dwr->add( { value => $no, weight => $seed } );
     }
 
     $r_no = $dwr->next;

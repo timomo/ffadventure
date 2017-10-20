@@ -49,7 +49,7 @@ if ($mente) {
 "現在メンテナンス中です。しばらくお待ちください。"
     );
 }
-&decode();
+&decode2();
 
 if ( $session->is_empty() ) {
     $session = $session->new();
@@ -81,14 +81,15 @@ $session->flush();
 exit(0);
 
 sub chara_load {
-    my $id  = shift;
+    my $id   = shift;
     my $cond = {};
-    if (ref $id eq 'HASH') {
+    if ( ref $id eq 'HASH' ) {
         $cond = $id;
-    } else {
+    }
+    else {
         $cond = { id => $id };
     }
-    my $rs  = $schema->resultset('Chara')->search( $cond );
+    my $rs  = $schema->resultset('Chara')->search($cond);
     my $row = $rs->next;
     return $row;
 }
@@ -231,7 +232,7 @@ sub html_top {
 </table>
 <hr size=0>
 <small>
-/ <a href="$homepage">$home_title</a> / <a href="$script_url?mode=item_shop">武器屋</a> / <a href="$script_url?mode=ranking">英雄たちの記録</a> / <a href="$syoku_html">各職業に必要な特性値</a> / <a href="http://cgi.members.interq.or.jp/sun/cumro/cgi-bin/idea/wwwlng.cgi">アイデア募集</a> /
+/ <a href="$homepage">$home_title</a> / <a href="$script_url?mode=ranking">英雄たちの記録</a> / <a href="$syoku_html">各職業に必要な特性値</a> / <a href="http://cgi.members.interq.or.jp/sun/cumro/cgi-bin/idea/wwwlng.cgi">アイデア募集</a> /
 </form>
 $kanri_message
 <p>
@@ -325,27 +326,11 @@ EOM
 #  ランキング画面  #
 #------------------#
 sub ranking {
-    open( IN, "$chara_file" );
-    @RANKING = <IN>;
-    close(IN);
-
-    $sousu = @RANKING;
-
-    @tmp1 = @tmp2 = ();
-    foreach (@RANKING) {
-        my (
-            $aa, $bb, $cc, $dd,     $ee, $ff, $gg,
-            $hh, $ii, $jj, $kk,     $ll, $mm, $nn,
-            $oo, $pp, $qq, $second, $first
-        ) = split /<>/;
-        push( @tmp1, $first );
-        push( @tmp2, $second );
-    }
-    @RANKING =
-      @RANKING[ sort { $tmp1[$b] <=> $tmp1[$a] or $tmp2[$b] <=> $tmp2[$a] }
-      0 .. $#tmp1 ];
-
-    $ima = time();
+    my $rs =
+      $schema->resultset('Chara')
+      ->search( {},
+        { limit => $rank_top, order_by => { -desc => [qw/lv ex/] } } );
+    my $sousu = $rs->count();
 
     &header;
 
@@ -353,29 +338,29 @@ sub ranking {
 <h1>英雄たちの記録</h1><hr size=0>
 現在登録されているキャラクター<b>$sousu</b>人中レベルTOP<b>$rank_top</b>を表\示しています。
 <p>
-<table border=1>
+<table class="table">
 <tr>
 <th></th><th>なまえ</th><th>職業</th><th>ホームページ</th><th>レベル</th><th>経験値</th><th>HP</th><th>力</th><th>削除まで</th>
 </tr>
 EOM
 
-    $i = 1;
-    foreach (@RANKING) {
-        (
-            $rid,    $rpass, $rsite,  $rurl,  $rname, $rsex,  $rchara,
-            $rn_0,   $rn_1,  $rn_2,   $rn_3,  $rn_4,  $rn_5,  $rn_6,
-            $rsyoku, $rhp,   $rmaxhp, $rex,   $rlv,   $rgold, $rlp,
-            $rtotal, $rkati, $rwaza,  $ritem, $rmons, $rhost, $rdate
-        ) = split(/<>/);
-        if ( $i > $rank_top ) { last; }
-        $rdate = $rdate + ( 60 * 60 * 24 * $limit );
-        $niti  = $rdate - $ima;
-        $niti  = int( $niti / ( 60 * 60 * 24 ) );
-        print "<tr>\n";
-        print
-"<td align=center>$i</td><td>$rname</td><td>$chara_syoku[$rsyoku]</td><td><a href=\"http\:\/\/$rurl\">$rsite</a></td><td align=center>$rlv</td><td align=center>$rex</td><td align=center>$rhp\/$rmaxhp</td><td align=center>$rn_0</td><td align=center>あと$niti日</td>\n";
-        print "</tr>\n";
-        $i++;
+    my $i = 1;
+    while ( my $chara = $rs->next ) {
+        my $rdate = $chara->date + ( 60 * 60 * 24 * $limit );
+        my $niti = $rdate - time;
+        $niti = int( $niti / ( 60 * 60 * 24 ) );
+        say '<tr>';
+        say sprintf(
+"<td align=center>%d</td><td>%s</td><td>%s</td><td><a href=\"http\:\/\/%s\">%s</a></td><td align=center>%s</td><td align=center>%s</td><td align=center>%d\/%d</td><td align=center>%s</td><td align=center>あと %d 日</td>",
+            $i,                            $chara->name,
+            $chara_syoku[ $chara->syoku ], $chara->url,
+            $chara->site,                  $chara->lv,
+            $chara->ex,                    $chara->hp,
+            $chara->maxhp,                 $chara->n_0,
+            $niti
+        );
+        say '</tr>';
+        $i += 1;
     }
 
     print "</table><p>\n";
@@ -401,7 +386,7 @@ sub item_shop {
 <p>
 <form action="$script_url" method="post">
 買いたいアイテムをチェックし、あなたのIDとパスワードを入力してください。
-<table border=1>
+<table class="table">
 <tr>
 <th></th><th>No.</th><th>なまえ</th><th>威力</th><th>価格</th>
 EOM
@@ -418,11 +403,8 @@ EOM
 </tr>
 </table>
 <p>
-あなたのキャラクターのIDとパスワードを入力してボタンを押してください。<br>
-ID：<input type=text name=id size=10>
-PASS：<input type=text name=pass size=10>
-<input type=hidden name=mode value=item_buy>
-<input type=submit value="アイテムを買う">
+<input type="hidden" name="mode" value="item_buy" />
+<input type="submit" value="アイテムを買う">
 </form>
 EOM
 
@@ -435,17 +417,14 @@ EOM
 #  アイテム買う  #
 #----------------#
 sub item_buy {
-    if ( $in{'id'} eq "" ) {
-        &error("IDが入力されていません。");
-    }
-    elsif ( $in{'pass'} eq "" ) {
-        &error("パスワードが入力されていません。");
-    }
-    elsif ( $in{'item_no'} eq "" ) {
+    my $chara =
+      &chara_load( $session->param('id') )
+      || &error(
+"入力されたIDは登録されていません。又はパスワードが違います。"
+      );
+    if ( $in{'item_no'} eq "" ) {
         &error("アイテムを選んでください。");
     }
-    $item_id   = $in{'id'};
-    $item_pass = $in{'pass'};
 
     open( IN, "$item_file" );
     @item_array = <IN>;
@@ -462,62 +441,16 @@ sub item_buy {
 
     $date = time();
 
-    # ファイルロック
-    if    ( $lockkey == 1 ) { &lock1; }
-    elsif ( $lockkey == 2 ) { &lock2; }
-    elsif ( $lockkey == 3 ) { &file'lock; }
-
-    open( IN, "$chara_file" );
-    @item_chara = <IN>;
-    close(IN);
-
-    $hit      = 0;
-    @item_new = ();
-    foreach (@item_chara) {
-        (
-            $iid,    $ipass, $isite,  $iurl,  $iname, $isex,  $ichara,
-            $in_0,   $in_1,  $in_2,   $in_3,  $in_4,  $in_5,  $in_6,
-            $isyoku, $ihp,   $imaxhp, $iex,   $ilv,   $igold, $ilp,
-            $itotal, $ikati, $iwaza,  $iitem, $imons, $ihost, $idate
-        ) = split(/<>/);
-        if ( $iid eq "$item_id" ) {
-            if   ( $igold < $i_gold ) { &error("お金が足りません"); }
-            else                      { $igold = $igold - $i_gold; }
-            unshift( @item_new,
-"$iid<>$ipass<>$isite<>$iurl<>$iname<>$isex<>$ichara<>$in_0<>$in_1<>$in_2<>$in_3<>$in_4<>$in_5<>$in_6<>$isyoku<>$imaxhp<>$imaxhp<>$iex<>$ilv<>$igold<>$ilp<>$itotal<>$ikati<>$iwaza<>$i_no<>$imons<>$host<>$idate<>\n"
-            );
-            $hit = 1;
-        }
-        else {
-            push( @item_new, "$_" );
-        }
-    }
-
-    if ( !$hit ) { &error("キャラクターが見つかりません"); }
-
-    open( OUT, ">$chara_file" );
-    print OUT @item_new;
-    close(OUT);
-
-    # ロック解除
-    if ( $lockkey == 3 ) { &file'unlock; }
-    else {
-        if ( -e $lockfile ) { unlink($lockfile); }
-    }
+    if   ( $chara->gold < $i_gold ) { &error("お金が足りません"); }
+    else                            { $chara->gold( $chara->gold - $i_gold ); }
+    $chara->host($host);
+    $chara->date($date);
+    $chara->item($i_no);
+    $chara->update();
 
     &header;
 
-    print <<"EOM";
-<h1>アイテムを買いました</h1>
-<hr size=0>
-<p>
-<form action="$script_url" method="post">
-<input type=hidden name=id value="$item_id">
-<input type=hidden name=pass value="$item_pass">
-<input type=hidden name=mode value=log_in>
-<input type=submit value="ステータス画面へ">
-</form>
-EOM
+    say '<h1>アイテムを買いました</h1>';
 
     &footer;
 
@@ -532,7 +465,11 @@ sub yado {
 
     $date = time();
 
-    my $chara     = &chara_load( $session->param('id') ) || &error( "入力されたIDは登録されていません。又はパスワードが違います。");
+    my $chara =
+      &chara_load( $session->param('id') )
+      || &error(
+"入力されたIDは登録されていません。又はパスワードが違います。"
+      );
     my $yado_gold = $yado_dai * $chara->lv;
     if ( $chara->gold < $yado_gold ) { &error("お金が足りません"); }
     $chara->gold( $chara->gold - $yado_gold );
@@ -547,10 +484,7 @@ sub yado {
 
     &header;
 
-    print <<"EOM";
-<h1>体力を回復しました</h1>
-<hr size=0>
-EOM
+    say '<h1>体力を回復しました</h1>';
 
     &footer;
 
@@ -600,7 +534,7 @@ sub chara_make {
 <td><select name="chara">
 EOM
 
-    foreach my $i (0 .. $#chara_name) {
+    foreach my $i ( 0 .. $#chara_name ) {
         print "<option value=\"$i\">$chara_name[$i]</option>";
     }
 
@@ -1011,8 +945,7 @@ sub top {
     elsif ( $lockkey == 2 ) { &lock2; }
     elsif ( $lockkey == 3 ) { &file'lock; }
 
-    my $chara =
-      &chara_load( $session->param('id') )
+    my $chara = &chara_load( $session->param('id') )
       || &error(
 "入力されたIDは登録されていません。又はパスワードが違います。"
       );
@@ -1172,9 +1105,7 @@ EOM
     }
     print <<"EOM";
 </select>
-<input type=hidden name=id value=$kid>
-<input type=hidden name=pass value=$kpass>
-<input type=hidden name=mode value=tensyoku>
+<input type="hidden" name="mode" value="tensyoku" />
 EOM
 
     if   ( !$hit ) { print "現在転職できる職業はありません"; }
@@ -1185,7 +1116,12 @@ EOM
 　<small>※ 転職すると、全ての能\力値が転職した職業の初期値になります。また、LVも1になります。</small>
 </form>
 <form action="$script_url" method="get">
-【魔物と戦い修行できます】<br>
+【アイテムショップ】<br />
+<input type="hidden" name="mode" value="item_shop" />
+<input type="submit" value="アイテムショップに行く"><br />
+</form>
+<form action="$script_url" method="get">
+【魔物と戦い修行できます】<br />
 <input type="hidden" name="mode" value="monster" />
 EOM
 
@@ -1204,19 +1140,21 @@ EOM
 <form action="$script_url" method="post">
 【旅の宿】<br>
 <input type="hidden" name="mode" value="yado" />
-<input type="submit" value="体力を回復"><br>
+<input type="submit" value="体力を回復"><br />
 　<small>※体力を回復することができます。<b>$yado_gold</b>G必要です。現在チャンプの方も回復できます。こまめに回復すれば連勝記録も・・・。</small>
 </form>
 <form action="$script_url" method="post">
-【他のキャラクターへメッセージを送る】<br>
-<input type="text" name=mes size=50><br>
-<select name=mesid>
+【他のキャラクターへメッセージを送る】<br />
+<input type="text" name="mes" size=50 /><br />
+<select name="mesid">
 <option value="">送る相手を選択
 EOM
 
-    my $rs  = $schema->resultset('Chara')->search( { id => { '!=' => $session->param('id') } } );
-    while (my $row = $rs->next) {
-        printf(qq|<option value="%d">%s さんへ</option>|, $row->no, $row->name);
+    my $rs = $schema->resultset('Chara')
+      ->search( { id => { '!=' => $session->param('id') } } );
+    while ( my $row = $rs->next ) {
+        printf( qq|<option value="%d">%s さんへ</option>|,
+            $row->no, $row->name );
     }
 
     print <<"EOM";
@@ -1231,11 +1169,16 @@ EOM
 【届いているメッセージ】表示数<b>$max_gyo</b>件まで<br>
 EOM
 
-    my $rs = $schema->resultset('Message')->search( [ { from => $chara->no }, { to => $chara->no } ], { limit => $max_gyo } );
+    my $rs =
+      $schema->resultset('Message')
+      ->search( [ { from => $chara->no }, { to => $chara->no } ],
+        { limit => $max_gyo } );
     while ( my $mes = $rs->next ) {
         my $from = &chara_load( { no => $mes->from } );
-        my $to = &chara_load( { no => $mes->to } );
-        printf("<hr size=0><small>%s さんから %s さんへ　＞ 「%s」(%s)</small><br>", $from->name, $to->name, $mes->mes, $mes->date);
+        my $to   = &chara_load( { no => $mes->to } );
+        printf(
+"<hr size=0><small>%s さんから %s さんへ　＞ 「%s」(%s)</small><br>",
+            $from->name, $to->name, $mes->mes, &get_time( $mes->date ) );
     }
 
     say '<hr size="0" />';
@@ -1263,14 +1206,16 @@ sub message {
     if ( $in{'mesid'} eq "" ) {
         &error("相手が指定されていません");
     }
-
-    &get_time;
-
-    my $from = &chara_load( $session->param('id') ) || &error( "入力されたIDは登録されていません。又はパスワードが違います。");
-    my $to   = &chara_load( { no => $in{mesid} } ) || &error( "送信先がいません。");
-    my $mes  = $schema->resultset('Message')->new( {} );
-    $mes->from($from->no);
-    $mes->to($to->no);
+    my $from =
+      &chara_load( $session->param('id') )
+      || &error(
+"入力されたIDは登録されていません。又はパスワードが違います。"
+      );
+    my $to = &chara_load( { no => $in{mesid} } )
+      || &error("送信先がいません。");
+    my $mes = $schema->resultset('Message')->new( {} );
+    $mes->from( $from->no );
+    $mes->to( $to->no );
     $mes->mes( $in{mes} );
     $mes->date(time);
     $mes->insert();
@@ -1296,20 +1241,12 @@ sub tensyoku {
 
     $date = time();
 
-    # ファイルロック
-    if    ( $lockkey == 1 ) { &lock1; }
-    elsif ( $lockkey == 2 ) { &lock2; }
-    elsif ( $lockkey == 3 ) { &file'lock; }
-
-    open( IN, "$chara_file" );
-    @tensyoku = <IN>;
-    close(IN);
-
     open( IN, "$syoku_file" );
-    @syokudate = <IN>;
+    my @syokudate = <IN>;
     close(IN);
 
-    ( $a, $b, $c, $d, $e, $f, $g ) = split( /<>/, $syokudate[ $in{'syoku'} ] );
+    my ( $a, $b, $c, $d, $e, $f, $g ) =
+      split( /<>/, $syokudate[ $in{'syoku'} ] );
 
     if ( !$a ) { $a = $kiso_nouryoku[0]; }
     if ( !$b ) { $b = $kiso_nouryoku[1]; }
@@ -1322,50 +1259,50 @@ sub tensyoku {
     $lv = 1;
     $ex = 0;
 
-    @ten_new = ();
-    foreach (@tensyoku) {
-        (
-            $tid,    $tpass, $tsite,  $turl,  $tname, $tsex,  $tchara,
-            $tn_0,   $tn_1,  $tn_2,   $tn_3,  $tn_4,  $tn_5,  $tn_6,
-            $tsyoku, $thp,   $tmaxhp, $tex,   $tlv,   $tgold, $tlp,
-            $ttotal, $tkati, $twaza,  $titem, $tmons, $thost, $tdate
-        ) = split(/<>/);
-        if ( $id eq $tid ) {
-            unshift( @ten_new,
-"$tid<>$tpass<>$tsite<>$turl<>$tname<>$tsex<>$tchara<>$a<>$b<>$c<>$d<>$e<>$f<>$g<>$syoku<>$thp<>$tmaxhp<>$ex<>$lv<>$tgold<>$tlp<>$ttotal<>$tkati<>$twaza<>$titem<>$tmons<>$host<>$date<>\n"
-            );
-        }
-        else {
-            push( @ten_new, "$_" );
-        }
-    }
+    my $chara =
+      &chara_load( $session->param('id') )
+      || &error(
+"入力されたIDは登録されていません。又はパスワードが違います。"
+      );
+    $chara->n_0($a);
+    $chara->n_1($b);
+    $chara->n_2($c);
+    $chara->n_3($d);
+    $chara->n_4($e);
+    $chara->n_5($f);
+    $chara->n_6($g);
+    $chara->syoku($syoku);
+    $chara->ex($ex);
+    $chara->lv($lv);
+    $chara->host($host);
+    $chara->date($date);
+    $chara->update();
+    my $winner = &winner_load();
 
-    open( OUT, ">$chara_file" );
-    print OUT @ten_new;
-    close(IN);
-
-    # &read_winner;
-
-    if ( $id eq $wid ) {
-        open( OUT, ">$winner_file" );
-        print OUT
-"$wid<>$wpass<>$wsite<>$wurl<>$wname<>$wsex<>$wchara<>$a<>$b<>$c<>$d<>$e<>$f<>$g<>$syoku<>$wmaxhp<>$wmaxhp<>$ex<>$lv<>$wgold<>$wlp<>$wtotal<>$wkati<>$wwaza<>$witem<>$wmons<>$host<>$date<>$wcount<>$lsite<>$lurl<>$lname<>\n";
-        close(OUT);
-    }
-
-    # ロック解除
-    if ( $lockkey == 3 ) { &file'unlock; }
-    else {
-        if ( -e $lockfile ) { unlink($lockfile); }
+    if ( defined($winner) && $chara->id == $winner->id ) {
+        $winner->n_0( $chara->n_0 );
+        $winner->n_1( $chara->n_1 );
+        $winner->n_2( $chara->n_2 );
+        $winner->n_3( $chara->n_3 );
+        $winner->n_4( $chara->n_4 );
+        $winner->n_5( $chara->n_5 );
+        $winner->n_6( $chara->n_6 );
+        $winner->syoku( $chara->syoku );
+        $winner->ex( $chara->ex );
+        $winner->lv( $chara->lv );
+        $winner->host( $chara->host );
+        $winner->date( $chara->date );
+        $winner->update();
     }
 
     &header;
+    my $id = $session->param('id');
 
     print <<"EOM";
 <h1>転職しました</h1><hr size=0>
 <p>
 <form action="$script_url" method="post">
-<input type="hidden" name=id value="$in{'id'}">
+<input type="hidden" name=id value="$id">
 <input type="submit" value="ステータス画面へ">
 </form>
 EOM
@@ -1387,8 +1324,7 @@ sub battle {
 
     $battle_flag = 1;
 
-    my $chara =
-      &chara_load( $session->param('id') )
+    my $chara = &chara_load( $session->param('id') )
       || &error(
 "入力されたIDは登録されていません。又はパスワードが違います。"
       );
@@ -2598,8 +2534,7 @@ sub monster {
 
     $battle_flag = 1;
 
-    my $chara =
-      &chara_load( $session->param('id') )
+    my $chara = &chara_load( $session->param('id') )
       || &error(
 "入力されたIDは登録されていません。又はパスワードが違います。"
       );
@@ -2614,9 +2549,9 @@ sub monster {
         &error("$mtime秒後闘えるようになります。<br>\n");
     }
 
-    #   if ( !$kmons ) {
-    #       &error("一度キャラクターと闘ってください");
-    #   }
+    if ( !$chara->mons ) {
+        &error("一度キャラクターと闘ってください");
+    }
 
     open( IN, "$monster_file" );
     @MONSTER = <IN>;
@@ -3027,7 +2962,7 @@ EOM
 #----------------#
 #  デコード処理  #
 #----------------#
-sub decode {
+sub decode2 {
     for my $key ( $cgi->param() ) {
         $in{$key} = $cgi->param($key);
     }
@@ -3101,16 +3036,18 @@ sub lock2 {
 #  時間を取得  #
 #--------------#
 sub get_time {
-    $ENV{'TZ'} = "JST-9";
-    ( $sec, $min, $hour, $mday, $mon, $year, $wday ) = localtime(time);
-    @week = ( 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat' );
+    my $time = shift || time;
+    $ENV{TZ} = 'JST-9';
+    my ( $sec, $min, $hour, $mday, $mon, $year, $wday ) = localtime($time);
+    my @week = ( 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat' );
 
     # 日時のフォーマット
-    $gettime = sprintf(
+    my $gettime = sprintf(
         "%04d/%02d/%02d %02d:%02d",
         $year + 1900,
         $mon + 1, $mday, $hour, $min
     );
+    return $gettime;
 }
 
 #ファイルのロック
